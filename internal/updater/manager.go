@@ -63,8 +63,13 @@ func NewManager(repoOwner, repoName, currentVersion string, logger *utils.Logger
 func (m *Manager) Start() error {
 	m.logger.Info("Starting update manager")
 
-	// Check for updates immediately on startup
+	// Start periodic checking (which will do an initial check after a short delay)
+	m.checkTicker = time.NewTicker(m.config.CheckInterval)
+	go m.periodicCheck()
+
+	// Check for updates after a short delay to not block startup
 	go func() {
+		time.Sleep(2 * time.Second) // Wait 2 seconds before first update check
 		updateInfo, err := m.checker.CheckForUpdates()
 		if err != nil {
 			m.logger.Error("Initial update check failed: %v", err)
@@ -79,10 +84,6 @@ func (m *Manager) Start() error {
 			}
 		}
 	}()
-
-	// Start periodic checking
-	m.checkTicker = time.NewTicker(m.config.CheckInterval)
-	go m.periodicCheck()
 
 	return nil
 }

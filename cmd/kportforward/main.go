@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/victorkazakov/kportforward/internal/config"
@@ -155,8 +157,9 @@ func runPortForward(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Update TUI with initial context
+	// Update TUI with initial context and UI handler status
 	tui.UpdateKubernetesContext(manager.GetKubernetesContext())
+	tui.UpdateUIHandlerStatus(grpcUIManager != nil, swaggerUIManager != nil)
 
 	// Listen for update notifications
 	go func() {
@@ -166,38 +169,63 @@ func runPortForward(cmd *cobra.Command, args []string) {
 		}
 	}()
 
-	// Wait for shutdown signal
-	<-sigChan
-	logger.Info("Received shutdown signal, stopping services...")
-
-	// Graceful shutdown
-	if err := updateManager.Stop(); err != nil {
-		logger.Error("Error stopping update manager: %v", err)
+	// Wait for shutdown signal or TUI quit
+	select {
+	case <-sigChan:
+		logger.Info("Received shutdown signal, stopping services...")
+	case <-tui.GetQuitChannel():
+		logger.Info("TUI quit, stopping services...")
 	}
 
-	if err := tui.Stop(); err != nil {
-		logger.Error("Error stopping TUI: %v", err)
-	}
+	// Create a timeout context for graceful shutdown
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
 
-	// Stop UI handlers explicitly
-	if grpcUIManager != nil {
-		if err := grpcUIManager.Disable(); err != nil {
-			logger.Error("Error stopping gRPC UI manager: %v", err)
+	// Channel to track shutdown completion
+	shutdownDone := make(chan bool, 1)
+
+	go func() {
+		// Graceful shutdown in proper order
+
+		// 1. Stop TUI first to prevent new UI interactions
+		if err := tui.Stop(); err != nil {
+			logger.Error("Error stopping TUI: %v", err)
 		}
-	}
 
-	if swaggerUIManager != nil {
-		if err := swaggerUIManager.Disable(); err != nil {
-			logger.Error("Error stopping Swagger UI manager: %v", err)
+		// 2. Stop update manager
+		if err := updateManager.Stop(); err != nil {
+			logger.Error("Error stopping update manager: %v", err)
 		}
-	}
 
-	if err := manager.Stop(); err != nil {
-		logger.Error("Error during shutdown: %v", err)
+		// 3. Stop UI handlers
+		if grpcUIManager != nil {
+			if err := grpcUIManager.Disable(); err != nil {
+				logger.Error("Error stopping gRPC UI manager: %v", err)
+			}
+		}
+
+		if swaggerUIManager != nil {
+			if err := swaggerUIManager.Disable(); err != nil {
+				logger.Error("Error stopping Swagger UI manager: %v", err)
+			}
+		}
+
+		// 4. Stop port-forward manager last
+		if err := manager.Stop(); err != nil {
+			logger.Error("Error during shutdown: %v", err)
+		}
+
+		shutdownDone <- true
+	}()
+
+	// Wait for shutdown to complete or timeout
+	select {
+	case <-shutdownDone:
+		logger.Info("Shutdown complete")
+	case <-shutdownCtx.Done():
+		logger.Error("Shutdown timed out, forcing exit")
 		os.Exit(1)
 	}
-
-	logger.Info("Shutdown complete")
 
 	// Close log file if it was opened
 	if err := logger.Close(); err != nil {

@@ -49,6 +49,10 @@ type Model struct {
 	lastUpdate      time.Time
 	updateAvailable bool
 
+	// UI Handler status
+	grpcUIEnabled    bool
+	swaggerUIEnabled bool
+
 	// UI state
 	selectedIndex int
 	sortField     SortField
@@ -73,6 +77,12 @@ type ContextUpdateMsg string
 
 // UpdateAvailableMsg represents an update notification
 type UpdateAvailableMsg bool
+
+// UIHandlerStatusMsg represents UI handler status update
+type UIHandlerStatusMsg struct {
+	GRPCUIEnabled    bool
+	SwaggerUIEnabled bool
+}
 
 // TickMsg represents a timer tick
 type TickMsg time.Time
@@ -120,6 +130,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case UpdateAvailableMsg:
 		m.updateAvailable = bool(msg)
+		return m, nil
+
+	case UIHandlerStatusMsg:
+		m.grpcUIEnabled = msg.GRPCUIEnabled
+		m.swaggerUIEnabled = msg.SwaggerUIEnabled
+		return m, nil
+
+	case struct {
+		GRPCUIEnabled    bool
+		SwaggerUIEnabled bool
+	}:
+		m.grpcUIEnabled = msg.GRPCUIEnabled
+		m.swaggerUIEnabled = msg.SwaggerUIEnabled
 		return m, nil
 
 	case TickMsg:
@@ -376,7 +399,7 @@ func (m *Model) renderTable() string {
 		// Get raw content for each column
 		nameContent := truncateString(serviceName, nameWidth)
 		statusContent := service.Status
-		urlContent := m.formatServiceURL(service, urlWidth)
+		urlContent := m.formatServiceURL(service, serviceName, urlWidth)
 		typeContent := truncateString(m.getServiceType(serviceName), typeWidth)
 
 		uptimeContent := "-"
@@ -438,9 +461,30 @@ func (m *Model) renderFooter() string {
 	)
 }
 
-// formatServiceURL formats the URL for a service
-func (m *Model) formatServiceURL(service config.ServiceStatus, maxWidth int) string {
+// formatServiceURL formats the URL for a service based on type and UI handler status
+func (m *Model) formatServiceURL(service config.ServiceStatus, serviceName string, maxWidth int) string {
 	if service.Status != "Running" {
+		return "-"
+	}
+
+	serviceType := m.getServiceType(serviceName)
+
+	// Only show URL for certain service types based on UI handler status
+	switch serviceType {
+	case "web":
+		// Always show URL for web services
+	case "rest":
+		// Only show URL for REST services if Swagger UI is enabled
+		if !m.swaggerUIEnabled {
+			return "-"
+		}
+	case "rpc":
+		// Only show URL for RPC services if gRPC UI is enabled
+		if !m.grpcUIEnabled {
+			return "-"
+		}
+	default:
+		// For other service types, don't show URL
 		return "-"
 	}
 

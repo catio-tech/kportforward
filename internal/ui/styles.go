@@ -80,7 +80,7 @@ var (
 	// URL link style
 	urlStyle = lipgloss.NewStyle().
 			Foreground(accentColor).
-			Underline(true)
+			Bold(false)
 
 	// Help text style
 	helpStyle = lipgloss.NewStyle().
@@ -121,7 +121,7 @@ func GetStatusIndicator(status string) string {
 	return style.Render("●")
 }
 
-// FormatURL formats a URL with clickable styling
+// FormatURL formats a URL with styling
 func FormatURL(url string) string {
 	return urlStyle.Render(url)
 }
