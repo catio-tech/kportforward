@@ -70,7 +70,8 @@ go tool pprof mem.prof
 - `scripts/build.sh`: Cross-platform build script (darwin/amd64, darwin/arm64, linux/amd64, windows/amd64)
 - `scripts/release.sh`: Automated release creation with GitHub CLI
 - `scripts/install-hooks.sh`: Git pre-commit hooks for automatic Go formatting
-- `.github/workflows/`: CI/CD automation for build, test, and release
+- `.github/workflows/build.yml`: CI/CD for automated builds and tests on push/PR
+- `.github/workflows/release.yml`: Automated release workflow for tagged versions
 
 ## Usage Commands
 
@@ -340,13 +341,13 @@ grep -i "error\|failed" /tmp/test.log
 
 #### Manual Port-Forward Testing
 ```bash
-# Test individual service connectivity
-kubectl port-forward -n catio-data-extraction service/architecture-inventory 50100:80 &
+# Test individual service connectivity (using services from embedded config)
+kubectl port-forward -n <namespace> service/<service-name> <local-port>:<target-port> &
 sleep 3
-nc -zv localhost 50100  # Should succeed
+nc -zv localhost <local-port>  # Should succeed
 pkill -f "kubectl port-forward"
 
-# Test with different services
+# Example with default embedded services
 kubectl port-forward -n flyte service/flyteconsole 8088:80 &
 sleep 3
 nc -zv localhost 8088
@@ -358,11 +359,12 @@ pkill -f "kubectl port-forward"
 # Verify Kubernetes connectivity
 kubectl config current-context
 kubectl get nodes
-kubectl get services -n catio-data-extraction -n flyte
 
-# Check service ports match config
-kubectl get service architecture-inventory -n catio-data-extraction -o jsonpath='{.spec.ports[0]}'
-kubectl get service flyteconsole -n flyte -o jsonpath='{.spec.ports[0]}'
+# Check if embedded services exist in your cluster
+kubectl get services -A | grep -E "(flyteconsole|flyteadmin)"
+
+# Verify specific service ports match embedded config
+kubectl get service <service-name> -n <namespace> -o jsonpath='{.spec.ports[0]}'
 ```
 
 #### Common Test Scenarios
@@ -372,10 +374,11 @@ kubectl get service flyteconsole -n flyte -o jsonpath='{.spec.ports[0]}'
 - **Health Checks**: TCP connectivity should work for all configured ports
 
 #### Expected Behavior
-- All 18 services start successfully within first few seconds
-- No "Restarting failed service" messages after grace period
-- Services maintain "Running" status throughout test duration
+- Embedded services start successfully if their Kubernetes resources exist in the cluster
+- No "Restarting failed service" messages after grace period for available services
+- Services maintain "Running" status throughout test duration for functional resources
 - Clean shutdown with all services stopped properly
+- Services that don't exist in your cluster will show as "Failed" - this is expected behavior
 
 ### Development Tips
 - **Use Git Hooks**: Run `./scripts/install-hooks.sh` for automatic formatting
