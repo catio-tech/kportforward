@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -59,7 +60,7 @@ func main() {
 	// Add CLI flags
 	rootCmd.Flags().BoolVar(&enableGRPCUI, "grpcui", false, "Enable gRPC UI for RPC services")
 	rootCmd.Flags().BoolVar(&enableSwaggerUI, "swaggerui", false, "Enable Swagger UI for REST services")
-	rootCmd.Flags().StringVar(&logFile, "log-file", "", "Write logs to file instead of stdout (e.g., --log-file ./app.log)")
+	rootCmd.Flags().StringVar(&logFile, "log-file", "", "Write logs to file (default: logs are discarded to avoid interfering with TUI)")
 
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "version",
@@ -80,8 +81,9 @@ func main() {
 // initializeLogger creates a logger with the appropriate output destination
 func initializeLogger(logFile string) (*utils.Logger, error) {
 	if logFile == "" {
-		// Use stdout if no log file specified
-		return utils.NewLogger(utils.LevelInfo), nil
+		// When no log file is specified, discard logs to avoid interfering with TUI
+		// The TUI provides visual status updates, so logging to stdout would corrupt the display
+		return utils.NewLoggerWithOutput(utils.LevelInfo, io.Discard), nil
 	}
 
 	// Create logger with file output

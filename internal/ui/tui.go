@@ -26,8 +26,8 @@ func NewTUI(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs ma
 	model := NewModel(statusChan, serviceConfigs)
 	program := tea.NewProgram(
 		model,
-		tea.WithAltScreen(),       // Use alternate screen buffer
-		tea.WithMouseCellMotion(), // Enable mouse support
+		tea.WithAltScreen(), // Use alternate screen buffer
+		// Mouse support removed to enable text selection in terminal
 	)
 
 	return &TUI{
