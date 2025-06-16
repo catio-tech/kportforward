@@ -90,8 +90,8 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 		return nil
 	}
 
-	// Find available port for gRPC UI
-	grpcuiPort, err := utils.FindAvailablePort(9090)
+	// Find available port for gRPC UI (thread-safe)
+	grpcuiPort, err := utils.FindAvailablePortSafe(9090)
 	if err != nil {
 		return fmt.Errorf("failed to find available port for gRPC UI: %w", err)
 	}
@@ -144,6 +144,9 @@ func (gm *GRPCUIManager) stopService(serviceName string) error {
 			gm.logger.Warn("Failed to kill gRPC UI process for %s: %v", serviceName, err)
 		}
 	}
+
+	// Release the allocated port
+	utils.ReleasePort(service.grpcuiPort)
 
 	service.status = "Stopped"
 	delete(gm.services, serviceName)

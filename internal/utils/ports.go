@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -69,4 +70,38 @@ func ResolvePortConflicts(services map[string]ServiceConfig) (map[string]int, er
 // ServiceConfig represents a minimal service configuration for port resolution
 type ServiceConfig struct {
 	LocalPort int
+}
+
+// Global port allocator to prevent race conditions
+var (
+	allocatedPorts = make(map[int]bool)
+	portMutex      sync.Mutex
+)
+
+// FindAvailablePortSafe finds the next available port starting from the given port
+// in a thread-safe manner to prevent race conditions
+func FindAvailablePortSafe(startPort int) (int, error) {
+	portMutex.Lock()
+	defer portMutex.Unlock()
+
+	for port := startPort; port <= 65535; port++ {
+		// Skip if already allocated by us
+		if allocatedPorts[port] {
+			continue
+		}
+
+		// Check if port is actually available
+		if IsPortAvailable(port) {
+			allocatedPorts[port] = true
+			return port, nil
+		}
+	}
+	return 0, fmt.Errorf("no available ports found starting from %d", startPort)
+}
+
+// ReleasePort releases a previously allocated port
+func ReleasePort(port int) {
+	portMutex.Lock()
+	defer portMutex.Unlock()
+	delete(allocatedPorts, port)
 }

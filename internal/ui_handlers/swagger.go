@@ -89,8 +89,8 @@ func (sm *SwaggerUIManager) StartService(serviceName string, serviceStatus confi
 		return nil
 	}
 
-	// Find available port for Swagger UI
-	swaggerPort, err := utils.FindAvailablePort(8080)
+	// Find available port for Swagger UI (thread-safe)
+	swaggerPort, err := utils.FindAvailablePortSafe(8080)
 	if err != nil {
 		return fmt.Errorf("failed to find available port for Swagger UI: %w", err)
 	}
@@ -151,6 +151,9 @@ func (sm *SwaggerUIManager) stopService(serviceName string) error {
 			sm.logger.Warn("Failed to stop Swagger UI container for %s: %v", serviceName, err)
 		}
 	}
+
+	// Release the allocated port
+	utils.ReleasePort(service.swaggerPort)
 
 	service.status = "Stopped"
 	delete(sm.services, serviceName)
