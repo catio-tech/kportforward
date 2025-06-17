@@ -20,8 +20,6 @@ portForwards:
     localPort: 50801
     namespace: "catio-data-extraction"
     type: "rest"
-    swaggerPath: "configuration/swagger"
-    apiPath: "api/initialization"
   requirements-document:
     target: "service/requirements-document"
     targetPort: 80

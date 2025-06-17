@@ -167,6 +167,13 @@ func (sm *ServiceManager) GetStatus() config.ServiceStatus {
 	return *sm.status
 }
 
+// SetStatusMessage sets a transient status message for the service
+func (sm *ServiceManager) SetStatusMessage(message string) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.status.StatusMessage = message
+}
+
 // Shutdown gracefully shuts down the service manager
 func (sm *ServiceManager) Shutdown() {
 	sm.cancel()

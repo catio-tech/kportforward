@@ -308,11 +308,44 @@ func (m *Model) renderDetailView() string {
 		details = append(details, fmt.Sprintf("Uptime: %s", utils.FormatUptime(uptime)))
 	}
 
+	// Add URL information if service is running
+	if service.Status == "Running" {
+		serviceType := m.getServiceType(serviceName)
+		switch serviceType {
+		case "web":
+			details = append(details, fmt.Sprintf("🌐 Web URL: http://localhost:%d", service.LocalPort))
+		case "rest":
+			if m.swaggerUIEnabled && m.manager != nil {
+				swaggerURL := m.manager.GetSwaggerUIURL(serviceName)
+				if swaggerURL != "" {
+					details = append(details, fmt.Sprintf("📋 Swagger UI: %s", swaggerURL))
+				} else {
+					details = append(details, fmt.Sprintf("🔗 REST API: http://localhost:%d", service.LocalPort))
+				}
+			}
+		case "rpc":
+			if m.grpcUIEnabled && m.manager != nil {
+				grpcURL := m.manager.GetGRPCUIURL(serviceName)
+				if grpcURL != "" {
+					details = append(details, fmt.Sprintf("⚡ gRPC UI: %s", grpcURL))
+				}
+			}
+		}
+	}
+
 	if service.LastError != "" {
 		details = append(details,
 			"",
 			"Last Error:",
 			errorMessageStyle.Render(service.LastError),
+		)
+	}
+
+	if service.StatusMessage != "" {
+		details = append(details,
+			"",
+			"Status:",
+			service.StatusMessage,
 		)
 	}
 
@@ -377,7 +410,7 @@ func (m *Model) renderTable() string {
 	// Calculate column widths based on terminal width
 	nameWidth := 25
 	statusWidth := 10
-	urlWidth := 30
+	urlWidth := 35 // Increased to account for emoji icons
 	typeWidth := 8
 	uptimeWidth := 10
 	errorWidth := m.width - nameWidth - statusWidth - urlWidth - typeWidth - uptimeWidth - 20
@@ -394,7 +427,7 @@ func (m *Model) renderTable() string {
 		FormatTableHeader(fmt.Sprintf("%-*s", urlWidth, "URL")),
 		FormatTableHeader(fmt.Sprintf("%-*s", typeWidth, "Type")),
 		FormatTableHeader(fmt.Sprintf("%-*s", uptimeWidth, "Uptime")),
-		FormatTableHeader(fmt.Sprintf("%-*s", errorWidth, "Error")),
+		FormatTableHeader(fmt.Sprintf("%-*s", errorWidth, "Error/Status")),
 	}
 
 	headerRow := strings.Join(headers, " ")
@@ -418,7 +451,12 @@ func (m *Model) renderTable() string {
 			uptimeContent = utils.FormatUptime(uptime)
 		}
 
-		errorContent := truncateString(service.LastError, errorWidth)
+		// Show status message if no error, otherwise show error
+		errorContent := service.LastError
+		if errorContent == "" && service.StatusMessage != "" {
+			errorContent = service.StatusMessage
+		}
+		errorContent = truncateString(errorContent, errorWidth)
 
 		// Create columns with exact width (pad first, then style)
 		nameCol := fmt.Sprintf("%-*s", nameWidth, nameContent)
@@ -427,8 +465,14 @@ func (m *Model) renderTable() string {
 		// Handle URL with proper width - style only the actual URL part
 		var urlCol string
 		if service.Status == "Running" {
-			// Only style if it's an actual URL, then pad to correct width
-			urlCol = FormatURL(urlContent) + strings.Repeat(" ", urlWidth-len(urlContent))
+			// Only style if it's an actual URL, then pad to correct width using visual width
+			styledURL := FormatURL(urlContent)
+			visualWidthOfContent := visualWidth(urlContent)
+			padding := urlWidth - visualWidthOfContent
+			if padding < 0 {
+				padding = 0
+			}
+			urlCol = styledURL + strings.Repeat(" ", padding)
 		} else {
 			urlCol = fmt.Sprintf("%-*s", urlWidth, urlContent)
 		}
@@ -479,20 +523,23 @@ func (m *Model) formatServiceURL(service config.ServiceStatus, serviceName strin
 
 	serviceType := m.getServiceType(serviceName)
 
-	// Determine URL based on service type and UI handler status
-	var url string
+	// Determine URL and icon based on service type and UI handler status
+	var url, icon string
 	switch serviceType {
 	case "web":
 		// Always show URL for web services (direct port-forward)
-		url = fmt.Sprintf("http://localhost:%d", service.LocalPort)
+		icon = "🌐" // Globe icon for web pages
+		url = fmt.Sprintf("%s http://localhost:%d", icon, service.LocalPort)
 	case "rest":
 		// Show Swagger UI URL if enabled, otherwise show direct port-forward
 		if m.swaggerUIEnabled && m.manager != nil {
 			swaggerURL := m.manager.GetSwaggerUIURL(serviceName)
 			if swaggerURL != "" {
-				url = swaggerURL
+				icon = "📋" // Clipboard icon for Swagger UI documentation
+				url = fmt.Sprintf("%s %s", icon, swaggerURL)
 			} else {
-				url = fmt.Sprintf("http://localhost:%d", service.LocalPort)
+				icon = "🔗" // Link icon for direct REST API access
+				url = fmt.Sprintf("%s http://localhost:%d", icon, service.LocalPort)
 			}
 		} else {
 			return "-"
@@ -502,7 +549,8 @@ func (m *Model) formatServiceURL(service config.ServiceStatus, serviceName strin
 		if m.grpcUIEnabled && m.manager != nil {
 			grpcURL := m.manager.GetGRPCUIURL(serviceName)
 			if grpcURL != "" {
-				url = grpcURL
+				icon = "⚡" // Lightning bolt icon for gRPC UI (fast RPC calls)
+				url = fmt.Sprintf("%s %s", icon, grpcURL)
 			} else {
 				return "-"
 			}
@@ -567,6 +615,24 @@ func (m *Model) getServiceType(serviceName string) string {
 		return serviceConfig.Type
 	}
 	return "unknown"
+}
+
+// visualWidth calculates the visual width of a string accounting for Unicode emojis
+func visualWidth(s string) int {
+	// Simple approximation: count emojis as 2 characters, regular chars as 1
+	width := 0
+	for _, r := range s {
+		if r > 0x1F600 && r < 0x1F64F || // Emoticons
+			r > 0x1F300 && r < 0x1F5FF || // Misc symbols
+			r > 0x1F680 && r < 0x1F6FF || // Transport symbols
+			r > 0x2600 && r < 0x26FF || // Misc symbols
+			r > 0x2700 && r < 0x27BF { // Dingbats
+			width += 2
+		} else {
+			width += 1
+		}
+	}
+	return width
 }
 
 // truncateString truncates a string to fit within the specified width

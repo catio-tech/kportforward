@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/victorkazakov/kportforward/internal/common"
 	"github.com/victorkazakov/kportforward/internal/config"
 	"github.com/victorkazakov/kportforward/internal/utils"
 )
@@ -17,6 +18,7 @@ type UIHandler interface {
 	StartService(serviceName string, serviceStatus config.ServiceStatus, serviceConfig config.Service) error
 	StopService(serviceName string) error
 	MonitorServices(services map[string]config.ServiceStatus, configs map[string]config.Service)
+	SetStatusCallback(callback common.StatusCallback)
 	IsEnabled() bool
 	GetServiceURL(serviceName string) string
 }
@@ -60,6 +62,14 @@ func (m *Manager) SetUIHandlers(grpcUI, swaggerUI UIHandler) {
 	defer m.mutex.Unlock()
 	m.grpcUIHandler = grpcUI
 	m.swaggerUIHandler = swaggerUI
+
+	// Set the status callback for UI handlers
+	if grpcUI != nil {
+		grpcUI.SetStatusCallback(m)
+	}
+	if swaggerUI != nil {
+		swaggerUI.SetStatusCallback(m)
+	}
 }
 
 // Start initializes and starts all port-forward services
@@ -90,8 +100,12 @@ func (m *Manager) Start() error {
 	// Start monitoring
 	m.startMonitoring()
 
-	// Give services a moment to start, then trigger initial UI handler check
+	// Send immediate status update to populate TUI table
 	go func() {
+		// Send initial status immediately
+		m.sendInitialStatus()
+
+		// Give services a moment to start, then trigger UI handler check
 		time.Sleep(2 * time.Second)
 		m.logger.Info("Triggering initial UI handler check")
 		m.monitorServices()
@@ -315,6 +329,29 @@ func (m *Manager) restartAllServices() {
 	}
 }
 
+// sendInitialStatus sends initial service status to TUI without UI handler checks
+func (m *Manager) sendInitialStatus() {
+	m.mutex.RLock()
+	services := make(map[string]*ServiceManager, len(m.services))
+	for name, sm := range m.services {
+		services[name] = sm
+	}
+	m.mutex.RUnlock()
+
+	statusMap := make(map[string]config.ServiceStatus)
+	for name, sm := range services {
+		statusMap[name] = sm.GetStatus()
+	}
+
+	// Send status update (non-blocking)
+	select {
+	case m.statusChan <- statusMap:
+		m.logger.Debug("Sent initial service status to TUI")
+	default:
+		// Channel is full, skip this update
+	}
+}
+
 // updateKubernetesContext gets and stores the current Kubernetes context
 func (m *Manager) updateKubernetesContext() error {
 	context, err := m.getCurrentKubernetesContext()
@@ -362,4 +399,15 @@ func (m *Manager) GetSwaggerUIURL(serviceName string) string {
 		return m.swaggerUIHandler.GetServiceURL(serviceName)
 	}
 	return ""
+}
+
+// UpdateServiceStatusMessage updates the status message for a service
+func (m *Manager) UpdateServiceStatusMessage(serviceName, message string) {
+	m.mutex.RLock()
+	sm, exists := m.services[serviceName]
+	m.mutex.RUnlock()
+
+	if exists {
+		sm.SetStatusMessage(message)
+	}
 }

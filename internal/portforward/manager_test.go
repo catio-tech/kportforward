@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/victorkazakov/kportforward/internal/common"
 	"github.com/victorkazakov/kportforward/internal/config"
 	"github.com/victorkazakov/kportforward/internal/utils"
 )
@@ -51,6 +52,10 @@ func (m *MockUIHandler) GetServiceURL(serviceName string) string {
 		return "http://localhost:9999"
 	}
 	return ""
+}
+
+func (m *MockUIHandler) SetStatusCallback(callback common.StatusCallback) {
+	// Mock implementation - just store for testing if needed
 }
 
 func TestNewManager(t *testing.T) {

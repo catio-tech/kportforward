@@ -7,16 +7,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/victorkazakov/kportforward/internal/common"
 	"github.com/victorkazakov/kportforward/internal/config"
 	"github.com/victorkazakov/kportforward/internal/utils"
 )
 
 // SwaggerUIManager manages Swagger UI containers for REST services
 type SwaggerUIManager struct {
-	services map[string]*SwaggerUIService
-	logger   *utils.Logger
-	mutex    sync.RWMutex
-	enabled  bool
+	services       map[string]*SwaggerUIService
+	logger         *utils.Logger
+	mutex          sync.RWMutex
+	enabled        bool
+	statusCallback common.StatusCallback
 }
 
 // SwaggerUIService represents a single Swagger UI instance
@@ -112,6 +114,11 @@ func (sm *SwaggerUIManager) StartService(serviceName string, serviceStatus confi
 		apiPath = "api" // Default API path
 	}
 
+	// Send status update that we're starting Swagger UI
+	if sm.statusCallback != nil {
+		sm.statusCallback.UpdateServiceStatusMessage(serviceName, "Starting Swagger UI...")
+	}
+
 	// Wait for port-forward to establish and verify it's working
 	sm.logger.Info("Starting Swagger UI for REST service %s (port %d)", serviceName, serviceStatus.LocalPort)
 
@@ -122,6 +129,9 @@ func (sm *SwaggerUIManager) StartService(serviceName string, serviceStatus confi
 	// Verify the port-forward is actually working before starting Swagger UI
 	if !sm.isPortReachable(serviceStatus.LocalPort) {
 		sm.logger.Info("Port-forward not ready for %s, Swagger UI not started", serviceName)
+		if sm.statusCallback != nil {
+			sm.statusCallback.UpdateServiceStatusMessage(serviceName, "")
+		}
 		return fmt.Errorf("port-forward not ready on port %d", serviceStatus.LocalPort)
 	}
 
@@ -156,6 +166,14 @@ func (sm *SwaggerUIManager) StartService(serviceName string, serviceStatus confi
 	if !sm.isContainerRunning(containerID) {
 		sm.logger.Error("Swagger UI container for %s died immediately after startup", serviceName)
 		sm.services[serviceName].status = "Failed"
+		if sm.statusCallback != nil {
+			sm.statusCallback.UpdateServiceStatusMessage(serviceName, "Swagger UI failed to start")
+		}
+	} else {
+		// Clear status message when successfully started
+		if sm.statusCallback != nil {
+			sm.statusCallback.UpdateServiceStatusMessage(serviceName, "")
+		}
 	}
 
 	return nil
@@ -233,6 +251,11 @@ func (sm *SwaggerUIManager) GetServiceURL(serviceName string) string {
 // IsEnabled returns whether Swagger UI management is enabled
 func (sm *SwaggerUIManager) IsEnabled() bool {
 	return sm.enabled
+}
+
+// SetStatusCallback sets the callback for sending status updates
+func (sm *SwaggerUIManager) SetStatusCallback(callback common.StatusCallback) {
+	sm.statusCallback = callback
 }
 
 // isDockerAvailable checks if Docker is available and running

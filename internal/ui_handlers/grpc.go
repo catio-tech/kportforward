@@ -11,16 +11,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/victorkazakov/kportforward/internal/common"
 	"github.com/victorkazakov/kportforward/internal/config"
 	"github.com/victorkazakov/kportforward/internal/utils"
 )
 
 // GRPCUIManager manages gRPC UI processes for RPC services
 type GRPCUIManager struct {
-	services map[string]*GRPCUIService
-	logger   *utils.Logger
-	mutex    sync.RWMutex
-	enabled  bool
+	services       map[string]*GRPCUIService
+	logger         *utils.Logger
+	mutex          sync.RWMutex
+	enabled        bool
+	statusCallback common.StatusCallback
 }
 
 // GRPCUIService represents a single gRPC UI instance
@@ -109,6 +111,11 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 		return nil // Skip for now, MonitorServices will retry
 	}
 
+	// Send status update that we're starting gRPC UI
+	if gm.statusCallback != nil {
+		gm.statusCallback.UpdateServiceStatusMessage(serviceName, "Starting gRPC UI...")
+	}
+
 	// Start grpcui process
 	gm.logger.Debug("Starting gRPC UI for %s: connecting to localhost:%d, serving on port %d", serviceName, serviceStatus.LocalPort, grpcuiPort)
 	cmd, err := gm.startGRPCUIProcess(serviceName, serviceStatus.LocalPort, grpcuiPort, logFile)
@@ -138,6 +145,14 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 	if !utils.IsProcessRunning(cmd.Process.Pid) {
 		gm.logger.Error("gRPC UI process for %s died immediately after startup", serviceName)
 		gm.services[serviceName].status = "Failed"
+		if gm.statusCallback != nil {
+			gm.statusCallback.UpdateServiceStatusMessage(serviceName, "gRPC UI failed to start")
+		}
+	} else {
+		// Clear status message when successfully started
+		if gm.statusCallback != nil {
+			gm.statusCallback.UpdateServiceStatusMessage(serviceName, "")
+		}
 	}
 
 	return nil
@@ -214,6 +229,11 @@ func (gm *GRPCUIManager) GetServiceURL(serviceName string) string {
 // IsEnabled returns whether gRPC UI management is enabled
 func (gm *GRPCUIManager) IsEnabled() bool {
 	return gm.enabled
+}
+
+// SetStatusCallback sets the callback for sending status updates
+func (gm *GRPCUIManager) SetStatusCallback(callback common.StatusCallback) {
+	gm.statusCallback = callback
 }
 
 // isGRPCUIAvailable checks if grpcui is available in PATH

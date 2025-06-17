@@ -37,6 +37,7 @@ type ServiceStatus struct {
 	StartTime     time.Time
 	RestartCount  int
 	LastError     string
+	StatusMessage string // Transient status message (e.g., "Starting gRPC UI...")
 	InCooldown    bool
 	CooldownUntil time.Time
 }
