@@ -2,6 +2,7 @@ package ui_handlers
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -102,9 +103,17 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
+	// Check if the gRPC service is accessible before starting UI
+	if !gm.testGRPCConnection(serviceStatus.LocalPort) {
+		gm.logger.Debug("gRPC service for %s not yet accessible on port %d, will retry later", serviceName, serviceStatus.LocalPort)
+		return nil // Skip for now, MonitorServices will retry
+	}
+
 	// Start grpcui process
+	gm.logger.Debug("Starting gRPC UI for %s: connecting to localhost:%d, serving on port %d", serviceName, serviceStatus.LocalPort, grpcuiPort)
 	cmd, err := gm.startGRPCUIProcess(serviceName, serviceStatus.LocalPort, grpcuiPort, logFile)
 	if err != nil {
+		gm.logger.Error("Failed to start grpcui process for %s: %v", serviceName, err)
 		return fmt.Errorf("failed to start grpcui process: %w", err)
 	}
 
@@ -120,7 +129,17 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 		status:       "Running",
 	}
 
-	gm.logger.Info("Started gRPC UI for %s on port %d", serviceName, grpcuiPort)
+	gm.logger.Info("Started gRPC UI for %s on port %d (PID: %d, log: %s)", serviceName, grpcuiPort, cmd.Process.Pid, logFile)
+
+	// Give the process a moment to start up
+	time.Sleep(100 * time.Millisecond)
+
+	// Check if process is still running after startup
+	if !utils.IsProcessRunning(cmd.Process.Pid) {
+		gm.logger.Error("gRPC UI process for %s died immediately after startup", serviceName)
+		gm.services[serviceName].status = "Failed"
+	}
+
 	return nil
 }
 
@@ -178,11 +197,18 @@ func (gm *GRPCUIManager) GetServiceInfo(serviceName string) *GRPCUIService {
 // GetServiceURL returns the URL for accessing the gRPC UI
 func (gm *GRPCUIManager) GetServiceURL(serviceName string) string {
 	service := gm.GetServiceInfo(serviceName)
-	if service == nil || service.status != "Running" {
+	if service == nil {
+		gm.logger.Debug("GetServiceURL: No gRPC UI service found for %s", serviceName)
+		return ""
+	}
+	if service.status != "Running" {
+		gm.logger.Debug("GetServiceURL: gRPC UI service for %s is not running (status: %s)", serviceName, service.status)
 		return ""
 	}
 
-	return fmt.Sprintf("http://localhost:%d", service.grpcuiPort)
+	url := fmt.Sprintf("http://localhost:%d", service.grpcuiPort)
+	gm.logger.Debug("GetServiceURL: returning %s for service %s", url, serviceName)
+	return url
 }
 
 // IsEnabled returns whether gRPC UI management is enabled
@@ -203,6 +229,8 @@ func (gm *GRPCUIManager) startGRPCUIProcess(serviceName string, targetPort, grpc
 		"-bind", "localhost",
 		"-port", fmt.Sprintf("%d", grpcuiPort),
 		"-plaintext",
+		"-connect-fail-fast=false", // Don't fail immediately if can't connect
+		"-connect-timeout", "5",    // 5 second timeout
 		fmt.Sprintf("localhost:%d", targetPort),
 	}
 
@@ -274,4 +302,17 @@ func (gm *GRPCUIManager) MonitorServices(services map[string]config.ServiceStatu
 			}(serviceName)
 		}
 	}
+}
+
+// testGRPCConnection tests if a gRPC service is accessible on the given port
+func (gm *GRPCUIManager) testGRPCConnection(port int) bool {
+	// TCP connection test with a short timeout
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), 1*time.Second)
+	if err != nil {
+		gm.logger.Debug("TCP connection test failed for port %d: %v", port, err)
+		return false
+	}
+	conn.Close()
+	gm.logger.Debug("TCP connection test successful for port %d", port)
+	return true
 }

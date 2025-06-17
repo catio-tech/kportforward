@@ -149,10 +149,13 @@ The application uses modern Go patterns and frameworks:
 - **YAML v3**: Configuration parsing and merging
 
 ### UI Handler System
-- **gRPC UI**: Spawns and manages `grpcui` processes for RPC services
+- **gRPC UI**: Spawns and manages `grpcui` processes for RPC services with intelligent connection testing
 - **Swagger UI**: Manages Docker containers running Swagger UI for REST services
 - **Automatic Lifecycle**: UI handlers start/stop automatically based on service status
 - **Health Monitoring**: Continuous monitoring with restart capabilities
+- **Connection Testing**: Pre-flight checks ensure services are accessible before starting UI
+- **Retry Logic**: Failed UI starts are retried automatically through monitoring loops
+- **Smart URL Generation**: Only displays clickable URLs for services that are actually accessible
 
 ## Configuration
 
@@ -307,6 +310,8 @@ gh release create v1.2.1 --title "Title" --notes "Release notes" dist/*
 - **Build Failures**: Check Go version (requires 1.21+)
 - **Missing kubectl**: Install with `brew install kubectl`
 - **gRPC UI not working**: Install with `go install github.com/fullstorydev/grpcui/cmd/grpcui@latest`
+- **gRPC UI links not appearing**: Service must be running and accessible; gRPC UI only shows URLs for connected services
+- **gRPC UI "site can't be reached"**: Fixed in latest version - URLs only appear when services are actually accessible
 - **Swagger UI failures**: Ensure Docker Desktop is running
 - **Port conflicts**: Application automatically resolves these
 - **Context issues**: Verify with `kubectl config current-context`
@@ -314,7 +319,10 @@ gh release create v1.2.1 --title "Title" --notes "Release notes" dist/*
 ### Debugging
 - **Verbose Logging**: Check logger initialization in `main.go`
 - **Log File Debugging**: Use `--log-file /tmp/debug.log` to capture detailed logs
+- **gRPC UI Debug**: Look for "TCP connection test" and "Starting gRPC UI" messages in logs
 - **UI Handler Logs**: gRPC UI logs in `/tmp/kpf_grpcui_*.log`
+- **Connection Issues**: Check if port-forwards are working: `kubectl port-forward -n <namespace> <service> <port>`
+- **Service Accessibility**: Verify gRPC services support reflection and are accessible
 - **Process Issues**: Use platform-specific process utilities in `utils/`
 - **Configuration Issues**: Verify embedded config loading in `config/`
 - **Performance Issues**: Use `kportforward profile` for CPU/memory analysis
@@ -379,6 +387,32 @@ kubectl get service <service-name> -n <namespace> -o jsonpath='{.spec.ports[0]}'
 - Services maintain "Running" status throughout test duration for functional resources
 - Clean shutdown with all services stopped properly
 - Services that don't exist in your cluster will show as "Failed" - this is expected behavior
+
+#### gRPC UI Testing
+```bash
+# Test gRPC UI functionality
+./bin/kportforward --grpcui --log-file /tmp/grpc-test.log
+
+# Check gRPC UI startup messages
+grep -i "grpc" /tmp/grpc-test.log
+
+# Look for connection testing
+grep "TCP connection test" /tmp/grpc-test.log
+
+# Check if gRPC UI processes are running
+ps aux | grep grpcui
+
+# Test gRPC UI accessibility manually
+# (after identifying gRPC UI port from logs)
+curl -I http://localhost:<grpcui-port>
+```
+
+#### gRPC UI Expected Behavior
+- gRPC UI URLs only appear for RPC services that are running and accessible
+- TCP connection tests pass before gRPC UI startup attempts
+- gRPC UI processes start only for services with working port-forwards
+- No "site can't be reached" errors for displayed gRPC UI links
+- gRPC UI logs show successful connection to target services
 
 ### Development Tips
 - **Use Git Hooks**: Run `./scripts/install-hooks.sh` for automatic formatting

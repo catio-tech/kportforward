@@ -45,6 +45,14 @@ func (m *MockUIHandler) MonitorServices(services map[string]config.ServiceStatus
 	// Mock implementation - just track that it was called
 }
 
+func (m *MockUIHandler) GetServiceURL(serviceName string) string {
+	// Mock implementation - return a test URL
+	if m.enabled {
+		return "http://localhost:9999"
+	}
+	return ""
+}
+
 func TestNewManager(t *testing.T) {
 	cfg := &config.Config{
 		PortForwards: map[string]config.Service{

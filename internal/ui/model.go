@@ -12,6 +12,12 @@ import (
 	"github.com/victorkazakov/kportforward/internal/utils"
 )
 
+// UIURLProvider interface for accessing UI handler URLs
+type UIURLProvider interface {
+	GetGRPCUIURL(serviceName string) string
+	GetSwaggerUIURL(serviceName string) string
+}
+
 // SortField represents different sorting options
 type SortField int
 
@@ -53,6 +59,9 @@ type Model struct {
 	grpcUIEnabled    bool
 	swaggerUIEnabled bool
 
+	// Manager reference for accessing UI handler URLs
+	manager UIURLProvider
+
 	// UI state
 	selectedIndex int
 	sortField     SortField
@@ -88,7 +97,7 @@ type UIHandlerStatusMsg struct {
 type TickMsg time.Time
 
 // NewModel creates a new TUI model
-func NewModel(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs map[string]config.Service) *Model {
+func NewModel(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs map[string]config.Service, manager UIURLProvider) *Model {
 	return &Model{
 		services:       make(map[string]config.ServiceStatus),
 		serviceConfigs: serviceConfigs,
@@ -99,6 +108,7 @@ func NewModel(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs 
 		viewMode:       ViewTable,
 		refreshRate:    250 * time.Millisecond,
 		statusChan:     statusChan,
+		manager:        manager,
 	}
 }
 
@@ -469,18 +479,34 @@ func (m *Model) formatServiceURL(service config.ServiceStatus, serviceName strin
 
 	serviceType := m.getServiceType(serviceName)
 
-	// Only show URL for certain service types based on UI handler status
+	// Determine URL based on service type and UI handler status
+	var url string
 	switch serviceType {
 	case "web":
-		// Always show URL for web services
+		// Always show URL for web services (direct port-forward)
+		url = fmt.Sprintf("http://localhost:%d", service.LocalPort)
 	case "rest":
-		// Only show URL for REST services if Swagger UI is enabled
-		if !m.swaggerUIEnabled {
+		// Show Swagger UI URL if enabled, otherwise show direct port-forward
+		if m.swaggerUIEnabled && m.manager != nil {
+			swaggerURL := m.manager.GetSwaggerUIURL(serviceName)
+			if swaggerURL != "" {
+				url = swaggerURL
+			} else {
+				url = fmt.Sprintf("http://localhost:%d", service.LocalPort)
+			}
+		} else {
 			return "-"
 		}
 	case "rpc":
-		// Only show URL for RPC services if gRPC UI is enabled
-		if !m.grpcUIEnabled {
+		// Show gRPC UI URL if enabled, otherwise don't show URL
+		if m.grpcUIEnabled && m.manager != nil {
+			grpcURL := m.manager.GetGRPCUIURL(serviceName)
+			if grpcURL != "" {
+				url = grpcURL
+			} else {
+				return "-"
+			}
+		} else {
 			return "-"
 		}
 	default:
@@ -488,7 +514,6 @@ func (m *Model) formatServiceURL(service config.ServiceStatus, serviceName strin
 		return "-"
 	}
 
-	url := fmt.Sprintf("http://localhost:%d", service.LocalPort)
 	if len(url) > maxWidth {
 		url = truncateString(url, maxWidth)
 	}

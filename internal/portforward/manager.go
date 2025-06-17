@@ -18,6 +18,7 @@ type UIHandler interface {
 	StopService(serviceName string) error
 	MonitorServices(services map[string]config.ServiceStatus, configs map[string]config.Service)
 	IsEnabled() bool
+	GetServiceURL(serviceName string) string
 }
 
 // Manager coordinates multiple port-forward services
@@ -332,4 +333,26 @@ func (m *Manager) getCurrentKubernetesContext() (string, error) {
 	}
 
 	return context, nil
+}
+
+// GetGRPCUIURL returns the gRPC UI URL for a service
+func (m *Manager) GetGRPCUIURL(serviceName string) string {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	if m.grpcUIHandler != nil && !isNilInterface(m.grpcUIHandler) && m.grpcUIHandler.IsEnabled() {
+		return m.grpcUIHandler.GetServiceURL(serviceName)
+	}
+	return ""
+}
+
+// GetSwaggerUIURL returns the Swagger UI URL for a service
+func (m *Manager) GetSwaggerUIURL(serviceName string) string {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	if m.swaggerUIHandler != nil && !isNilInterface(m.swaggerUIHandler) && m.swaggerUIHandler.IsEnabled() {
+		return m.swaggerUIHandler.GetServiceURL(serviceName)
+	}
+	return ""
 }

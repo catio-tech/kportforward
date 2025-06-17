@@ -120,12 +120,13 @@ uiOptions:
 ## 🎯 UI Integrations
 
 ### gRPC UI
-Automatically launches web interfaces for gRPC services:
+Automatically launches web interfaces for gRPC services with intelligent connection testing:
 ```bash
 kportforward --grpcui
 ```
 - Requires: `go install github.com/fullstorydev/grpcui/cmd/grpcui@latest`
-- Accessible at: `http://localhost:<auto-assigned-port>`
+- Accessible at: `http://localhost:<auto-assigned-port>` (only when service is accessible)
+- Smart startup: Only shows URLs for services that are actually running and reachable
 
 ### Swagger UI
 Automatically launches Swagger UI for REST APIs:
@@ -233,6 +234,8 @@ git commit --no-verify
 **gRPC UI not starting**:
 - Install grpcui: `go install github.com/fullstorydev/grpcui/cmd/grpcui@latest`
 - Check logs in `/tmp/kpf_grpcui_*.log`
+- gRPC UI only starts for accessible services - check if port-forward is working
+- Look for "TCP connection test" messages in debug logs
 
 **Swagger UI not starting**:
 - Ensure Docker is running
@@ -364,8 +367,8 @@ kportforward --log-file /var/log/kportforward.log
 
 # Access services:
 # - Embedded services available at configured ports
-# - gRPC UI: http://localhost:9090 (auto-assigned)
-# - Swagger UI: http://localhost:8080 (auto-assigned)
+# - gRPC UI: http://localhost:<auto-assigned-port> (starts from 9090)
+# - Swagger UI: http://localhost:<auto-assigned-port> (starts from 8080)
 # - Your APIs accessible through UI tools
 # - All activity logged to specified file
 ```

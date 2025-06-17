@@ -20,10 +20,10 @@ type TUI struct {
 }
 
 // NewTUI creates a new terminal user interface
-func NewTUI(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs map[string]config.Service) *TUI {
+func NewTUI(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs map[string]config.Service, manager UIURLProvider) *TUI {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	model := NewModel(statusChan, serviceConfigs)
+	model := NewModel(statusChan, serviceConfigs, manager)
 	program := tea.NewProgram(
 		model,
 		tea.WithAltScreen(), // Use alternate screen buffer
