@@ -92,7 +92,7 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 	}
 
 	// Find available port for gRPC UI (thread-safe)
-	grpcuiPort, err := utils.FindAvailablePortSafe(9090)
+	grpcuiPort, err := utils.FindAvailablePortSafe(9200)
 	if err != nil {
 		return fmt.Errorf("failed to find available port for gRPC UI: %w", err)
 	}

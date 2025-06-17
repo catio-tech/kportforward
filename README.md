@@ -129,12 +129,13 @@ kportforward --grpcui
 - Smart startup: Only shows URLs for services that are actually running and reachable
 
 ### Swagger UI
-Automatically launches Swagger UI for REST APIs:
+Automatically launches Swagger UI for REST APIs with intelligent connection testing:
 ```bash
 kportforward --swaggerui
 ```
 - Requires: Docker Desktop
-- Accessible at: `http://localhost:<auto-assigned-port>`
+- Accessible at: `http://localhost:<auto-assigned-port>` (only when service is accessible)
+- Smart startup: Only shows URLs for services that are actually running and reachable
 
 ## 🛠️ Development
 
@@ -240,6 +241,9 @@ git commit --no-verify
 **Swagger UI not starting**:
 - Ensure Docker is running
 - Check that REST services expose Swagger documentation
+- Swagger UI only starts for accessible services - check if port-forward is working
+- Look for "TCP connection test" messages in debug logs
+- Check Docker containers: `docker ps | grep kpf-swagger`
 
 **Services frequently restarting**:
 - Services enter cooldown mode with exponential backoff

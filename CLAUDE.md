@@ -150,12 +150,13 @@ The application uses modern Go patterns and frameworks:
 
 ### UI Handler System
 - **gRPC UI**: Spawns and manages `grpcui` processes for RPC services with intelligent connection testing
-- **Swagger UI**: Manages Docker containers running Swagger UI for REST services
+- **Swagger UI**: Manages Docker containers running Swagger UI for REST services with intelligent connection testing
 - **Automatic Lifecycle**: UI handlers start/stop automatically based on service status
-- **Health Monitoring**: Continuous monitoring with restart capabilities
-- **Connection Testing**: Pre-flight checks ensure services are accessible before starting UI
+- **Health Monitoring**: Continuous monitoring with restart capabilities for both processes and containers
+- **Connection Testing**: Pre-flight TCP checks ensure services are accessible before starting UI components
 - **Retry Logic**: Failed UI starts are retried automatically through monitoring loops
 - **Smart URL Generation**: Only displays clickable URLs for services that are actually accessible
+- **Container Health**: Docker container readiness verification for Swagger UI services
 
 ## Configuration
 
@@ -313,6 +314,8 @@ gh release create v1.2.1 --title "Title" --notes "Release notes" dist/*
 - **gRPC UI links not appearing**: Service must be running and accessible; gRPC UI only shows URLs for connected services
 - **gRPC UI "site can't be reached"**: Fixed in latest version - URLs only appear when services are actually accessible
 - **Swagger UI failures**: Ensure Docker Desktop is running
+- **Swagger UI links not appearing**: Service must be running and accessible; Swagger UI only shows URLs for connected services
+- **Swagger UI "site can't be reached"**: Fixed in latest version - URLs only appear when containers are actually running
 - **Port conflicts**: Application automatically resolves these
 - **Context issues**: Verify with `kubectl config current-context`
 
@@ -320,9 +323,11 @@ gh release create v1.2.1 --title "Title" --notes "Release notes" dist/*
 - **Verbose Logging**: Check logger initialization in `main.go`
 - **Log File Debugging**: Use `--log-file /tmp/debug.log` to capture detailed logs
 - **gRPC UI Debug**: Look for "TCP connection test" and "Starting gRPC UI" messages in logs
+- **Swagger UI Debug**: Look for "TCP connection test" and "Starting Swagger UI" messages in logs
 - **UI Handler Logs**: gRPC UI logs in `/tmp/kpf_grpcui_*.log`
+- **Container Issues**: Check Docker container status: `docker ps | grep kpf-swagger`
 - **Connection Issues**: Check if port-forwards are working: `kubectl port-forward -n <namespace> <service> <port>`
-- **Service Accessibility**: Verify gRPC services support reflection and are accessible
+- **Service Accessibility**: Verify services are accessible and support their respective protocols
 - **Process Issues**: Use platform-specific process utilities in `utils/`
 - **Configuration Issues**: Verify embedded config loading in `config/`
 - **Performance Issues**: Use `kportforward profile` for CPU/memory analysis
@@ -413,6 +418,32 @@ curl -I http://localhost:<grpcui-port>
 - gRPC UI processes start only for services with working port-forwards
 - No "site can't be reached" errors for displayed gRPC UI links
 - gRPC UI logs show successful connection to target services
+
+#### Swagger UI Testing
+```bash
+# Test Swagger UI functionality
+./bin/kportforward --swaggerui --log-file /tmp/swagger-test.log
+
+# Check Swagger UI startup messages
+grep -i "swagger" /tmp/swagger-test.log
+
+# Look for connection testing
+grep "TCP connection test" /tmp/swagger-test.log
+
+# Check if Swagger UI containers are running
+docker ps | grep kpf-swagger
+
+# Test Swagger UI accessibility manually
+# (after identifying Swagger UI port from logs)
+curl -I http://localhost:<swagger-port>
+```
+
+#### Swagger UI Expected Behavior
+- Swagger UI URLs only appear for REST services that are running and accessible
+- TCP connection tests pass before container startup attempts
+- Docker containers start only for services with working port-forwards
+- No "site can't be reached" errors for displayed Swagger UI links
+- Container logs show successful startup and accessibility
 
 ### Development Tips
 - **Use Git Hooks**: Run `./scripts/install-hooks.sh` for automatic formatting

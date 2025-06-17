@@ -76,8 +76,14 @@ func (sm *SwaggerUIManager) StartService(serviceName string, serviceStatus confi
 		return nil
 	}
 
-	// Only start for REST services that are running
+	// Only start for REST services that are running and have a swaggerPath configured
 	if serviceConfig.Type != "rest" || serviceStatus.Status != "Running" {
+		return nil
+	}
+
+	// Skip if no swaggerPath is configured
+	if serviceConfig.SwaggerPath == "" {
+		sm.logger.Debug("Skipping Swagger UI for %s: no swaggerPath configured", serviceName)
 		return nil
 	}
 
@@ -90,7 +96,7 @@ func (sm *SwaggerUIManager) StartService(serviceName string, serviceStatus confi
 	}
 
 	// Find available port for Swagger UI (thread-safe)
-	swaggerPort, err := utils.FindAvailablePortSafe(8080)
+	swaggerPort, err := utils.FindAvailablePortSafe(9100)
 	if err != nil {
 		return fmt.Errorf("failed to find available port for Swagger UI: %w", err)
 	}
@@ -106,9 +112,24 @@ func (sm *SwaggerUIManager) StartService(serviceName string, serviceStatus confi
 		apiPath = "api" // Default API path
 	}
 
+	// Wait for port-forward to establish and verify it's working
+	sm.logger.Info("Starting Swagger UI for REST service %s (port %d)", serviceName, serviceStatus.LocalPort)
+
+	// Give port-forward time to establish
+	time.Sleep(1 * time.Second)
+	sm.logger.Info("Checking if port-forward is established for %s on port %d", serviceName, serviceStatus.LocalPort)
+
+	// Verify the port-forward is actually working before starting Swagger UI
+	if !sm.isPortReachable(serviceStatus.LocalPort) {
+		sm.logger.Info("Port-forward not ready for %s, Swagger UI not started", serviceName)
+		return fmt.Errorf("port-forward not ready on port %d", serviceStatus.LocalPort)
+	}
+
 	// Start Docker container
+	sm.logger.Info("Starting Swagger UI for %s: connecting to localhost:%d, serving on port %d", serviceName, serviceStatus.LocalPort, swaggerPort)
 	containerID, containerName, err := sm.startSwaggerContainer(serviceName, serviceStatus.LocalPort, swaggerPort, swaggerPath, apiPath)
 	if err != nil {
+		sm.logger.Error("Failed to start Swagger UI container for %s: %v", serviceName, err)
 		return fmt.Errorf("failed to start Swagger UI container: %w", err)
 	}
 
@@ -126,7 +147,17 @@ func (sm *SwaggerUIManager) StartService(serviceName string, serviceStatus confi
 		apiPath:       apiPath,
 	}
 
-	sm.logger.Info("Started Swagger UI for %s on port %d", serviceName, swaggerPort)
+	sm.logger.Info("Started Swagger UI for %s on port %d (Container: %s)", serviceName, swaggerPort, containerID)
+
+	// Give the container a moment to start up
+	time.Sleep(500 * time.Millisecond)
+
+	// Check if container is still running after startup
+	if !sm.isContainerRunning(containerID) {
+		sm.logger.Error("Swagger UI container for %s died immediately after startup", serviceName)
+		sm.services[serviceName].status = "Failed"
+	}
+
 	return nil
 }
 
@@ -185,11 +216,18 @@ func (sm *SwaggerUIManager) GetServiceInfo(serviceName string) *SwaggerUIService
 // GetServiceURL returns the URL for accessing the Swagger UI
 func (sm *SwaggerUIManager) GetServiceURL(serviceName string) string {
 	service := sm.GetServiceInfo(serviceName)
-	if service == nil || service.status != "Running" {
+	if service == nil {
+		sm.logger.Debug("GetServiceURL: No Swagger UI service found for %s", serviceName)
+		return ""
+	}
+	if service.status != "Running" {
+		sm.logger.Debug("GetServiceURL: Swagger UI service for %s is not running (status: %s)", serviceName, service.status)
 		return ""
 	}
 
-	return fmt.Sprintf("http://localhost:%d", service.swaggerPort)
+	url := fmt.Sprintf("http://localhost:%d", service.swaggerPort)
+	sm.logger.Debug("GetServiceURL: returning %s for service %s", url, serviceName)
+	return url
 }
 
 // IsEnabled returns whether Swagger UI management is enabled
@@ -208,40 +246,33 @@ func (sm *SwaggerUIManager) isDockerAvailable() bool {
 func (sm *SwaggerUIManager) startSwaggerContainer(serviceName string, targetPort, swaggerPort int, swaggerPath, apiPath string) (string, string, error) {
 	containerName := fmt.Sprintf("kpf-swagger-%s", strings.ReplaceAll(serviceName, "_", "-"))
 
+	// Kill any existing container using the same port (like the working bash code)
+	sm.stopContainerByPort(swaggerPort)
+
 	// Stop any existing container with the same name
 	sm.stopContainerByName(containerName)
 
-	// Docker run arguments
+	// Build URL like the working bash code: http://localhost:${lport}/${api_path}/${swagger_path}
+	swaggerURL := fmt.Sprintf("http://localhost:%d/%s/%s", targetPort, apiPath, swaggerPath)
+
+	// Docker run arguments (simplified to match working bash code)
 	args := []string{
 		"run",
-		"-d",   // Detached mode
-		"--rm", // Remove container when it stops
-		"--name", containerName,
+		"--rm",
+		"-d",
 		"-p", fmt.Sprintf("%d:8080", swaggerPort),
-		"-e", fmt.Sprintf("SWAGGER_JSON=http://host.docker.internal:%d/%s", targetPort, swaggerPath),
+		"-e", fmt.Sprintf("URL=%s", swaggerURL),
 		"swaggerapi/swagger-ui",
 	}
 
-	// Add host networking for Docker Desktop
-	if sm.isDockerDesktop() {
-		// Docker Desktop automatically provides host.docker.internal
-	} else {
-		// For Linux Docker, add host networking
-		args = append([]string{"run", "-d", "--rm", "--name", containerName, "--network=host"}, args[4:]...)
-		// Update the environment variable for Linux
-		for i, arg := range args {
-			if strings.HasPrefix(arg, "SWAGGER_JSON=") {
-				args[i] = fmt.Sprintf("SWAGGER_JSON=http://localhost:%d/%s", targetPort, swaggerPath)
-				break
-			}
-		}
-	}
-
+	sm.logger.Info("Starting Docker container with command: docker %s", strings.Join(args, " "))
 	cmd := exec.Command("docker", args...)
 	output, err := cmd.Output()
 	if err != nil {
+		sm.logger.Error("Docker container startup failed: %v", err)
 		return "", "", fmt.Errorf("failed to start Docker container: %w", err)
 	}
+	sm.logger.Info("Docker container started successfully")
 
 	containerID := strings.TrimSpace(string(output))
 	return containerID, containerName, nil
@@ -261,6 +292,29 @@ func (sm *SwaggerUIManager) stopContainerByName(containerName string) error {
 	return nil
 }
 
+// stopContainerByPort stops any Docker container using the specified port
+func (sm *SwaggerUIManager) stopContainerByPort(port int) error {
+	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("publish=%d", port), "-q")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil // Ignore errors
+	}
+
+	containerID := strings.TrimSpace(string(output))
+	if containerID != "" {
+		stopCmd := exec.Command("docker", "rm", "-f", containerID)
+		_ = stopCmd.Run()
+	}
+	return nil
+}
+
+// isPortReachable checks if a port is reachable (like nc -z in bash)
+func (sm *SwaggerUIManager) isPortReachable(port int) bool {
+	cmd := exec.Command("nc", "-z", "localhost", fmt.Sprintf("%d", port))
+	err := cmd.Run()
+	return err == nil
+}
+
 // isContainerRunning checks if a Docker container is running
 func (sm *SwaggerUIManager) isContainerRunning(containerID string) bool {
 	cmd := exec.Command("docker", "ps", "-q", "--filter", fmt.Sprintf("id=%s", containerID))
@@ -270,20 +324,6 @@ func (sm *SwaggerUIManager) isContainerRunning(containerID string) bool {
 	}
 
 	return strings.TrimSpace(string(output)) != ""
-}
-
-// isDockerDesktop checks if we're running Docker Desktop (vs Docker on Linux)
-func (sm *SwaggerUIManager) isDockerDesktop() bool {
-	cmd := exec.Command("docker", "version", "--format", "{{.Server.Os}}")
-	_, err := cmd.Output()
-	if err != nil {
-		return true // Assume Docker Desktop if we can't determine
-	}
-
-	// Docker Desktop reports as "linux" but has different networking
-	// We'll use a heuristic: check if host.docker.internal resolves
-	checkCmd := exec.Command("ping", "-c", "1", "host.docker.internal")
-	return checkCmd.Run() == nil
 }
 
 // MonitorServices monitors all Swagger UI services and restarts failed ones
@@ -296,18 +336,29 @@ func (sm *SwaggerUIManager) MonitorServices(services map[string]config.ServiceSt
 	defer sm.mutex.Unlock()
 
 	// Start Swagger UI for new REST services
+	restServicesFound := 0
+	runningRestServices := 0
 	for serviceName, serviceStatus := range services {
 		if serviceConfig, exists := configs[serviceName]; exists {
-			if serviceConfig.Type == "rest" && serviceStatus.Status == "Running" {
-				if _, uiExists := sm.services[serviceName]; !uiExists {
-					go func(name string, status config.ServiceStatus, config config.Service) {
-						if err := sm.StartService(name, status, config); err != nil {
-							sm.logger.Error("Failed to start Swagger UI for %s: %v", name, err)
-						}
-					}(serviceName, serviceStatus, serviceConfig)
+			if serviceConfig.Type == "rest" {
+				restServicesFound++
+				sm.logger.Info("Found REST service %s with status: %s", serviceName, serviceStatus.Status)
+				if serviceStatus.Status == "Running" {
+					runningRestServices++
+					if _, uiExists := sm.services[serviceName]; !uiExists {
+						sm.logger.Info("Starting Swagger UI for REST service: %s", serviceName)
+						go func(name string, status config.ServiceStatus, config config.Service) {
+							if err := sm.StartService(name, status, config); err != nil {
+								sm.logger.Error("Failed to start Swagger UI for %s: %v", name, err)
+							}
+						}(serviceName, serviceStatus, serviceConfig)
+					}
 				}
 			}
 		}
+	}
+	if restServicesFound > 0 {
+		sm.logger.Info("MonitorServices: Found %d REST services, %d running", restServicesFound, runningRestServices)
 	}
 
 	// Stop Swagger UI for services that are no longer running

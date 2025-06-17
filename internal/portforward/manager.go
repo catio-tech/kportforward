@@ -90,6 +90,13 @@ func (m *Manager) Start() error {
 	// Start monitoring
 	m.startMonitoring()
 
+	// Give services a moment to start, then trigger initial UI handler check
+	go func() {
+		time.Sleep(2 * time.Second)
+		m.logger.Info("Triggering initial UI handler check")
+		m.monitorServices()
+	}()
+
 	if len(startErrors) > 0 {
 		return fmt.Errorf("failed to start %d services", len(startErrors))
 	}
