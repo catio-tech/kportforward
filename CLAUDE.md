@@ -21,6 +21,11 @@ go test ./...
 # Run performance benchmarks
 go test -bench=. -benchmem ./...
 
+# Code quality checks
+go vet ./...
+go fmt ./...
+gofmt -s -w .
+
 # Performance profiling
 ./bin/kportforward profile --cpuprofile=cpu.prof --memprofile=mem.prof --duration=60s
 
@@ -161,7 +166,7 @@ The application uses modern Go patterns and frameworks:
 ## Configuration
 
 ### Embedded Default Configuration
-The application includes 18 pre-configured services embedded at compile-time. These cover common Kubernetes services and can be found in `internal/config/default.yaml`.
+The application includes pre-configured services embedded at compile-time for Catio microservices architecture. These can be found in `internal/config/default.yaml`.
 
 ### User Configuration Override
 Users can create `~/.config/kportforward/config.yaml` to add services or override defaults:
@@ -361,9 +366,9 @@ nc -zv localhost <local-port>  # Should succeed
 pkill -f "kubectl port-forward"
 
 # Example with default embedded services
-kubectl port-forward -n flyte service/flyteconsole 8088:80 &
+kubectl port-forward -n catio-data-extraction service/environment 50800:80 &
 sleep 3
-nc -zv localhost 8088
+nc -zv localhost 50800
 pkill -f "kubectl port-forward"
 ```
 
@@ -374,7 +379,7 @@ kubectl config current-context
 kubectl get nodes
 
 # Check if embedded services exist in your cluster
-kubectl get services -A | grep -E "(flyteconsole|flyteadmin)"
+kubectl get services -n catio-data-extraction
 
 # Verify specific service ports match embedded config
 kubectl get service <service-name> -n <namespace> -o jsonpath='{.spec.ports[0]}'

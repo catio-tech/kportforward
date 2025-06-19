@@ -64,11 +64,16 @@ func (m *Manager) SetUIHandlers(grpcUI, swaggerUI UIHandler) {
 	m.swaggerUIHandler = swaggerUI
 
 	// Set the status callback for UI handlers
+	// Check for nil interface values properly using reflection
 	if grpcUI != nil {
-		grpcUI.SetStatusCallback(m)
+		if reflect.ValueOf(grpcUI).IsNil() == false {
+			grpcUI.SetStatusCallback(m)
+		}
 	}
 	if swaggerUI != nil {
-		swaggerUI.SetStatusCallback(m)
+		if reflect.ValueOf(swaggerUI).IsNil() == false {
+			swaggerUI.SetStatusCallback(m)
+		}
 	}
 }
 
