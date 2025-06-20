@@ -118,20 +118,43 @@ func (c *Checker) compareVersions(release *Release) *UpdateInfo {
 	return updateInfo
 }
 
-// isNewerVersion checks if version A is newer than version B
+// isNewerVersion checks if version A is newer than version B using semantic versioning rules
 func (c *Checker) isNewerVersion(versionA, versionB string) bool {
 	// Remove 'v' prefix if present
 	versionA = strings.TrimPrefix(versionA, "v")
 	versionB = strings.TrimPrefix(versionB, "v")
 
-	// Handle "dev" version
-	if versionB == "dev" {
+	// Handle special versions
+	if versionB == "dev" || versionB == "none" {
 		return true
 	}
 
-	// Simple string comparison for now
-	// In production, you'd want proper semantic version parsing
-	return versionA > versionB
+	// Parse versions into segments
+	segmentsA := strings.Split(versionA, ".")
+	segmentsB := strings.Split(versionB, ".")
+
+	// Compare major.minor.patch segments
+	for i := 0; i < 3; i++ {
+		// If we ran out of segments, pad with zeros
+		var numA, numB int
+		if i < len(segmentsA) {
+			fmt.Sscanf(segmentsA[i], "%d", &numA)
+		}
+		if i < len(segmentsB) {
+			fmt.Sscanf(segmentsB[i], "%d", &numB)
+		}
+
+		if numA > numB {
+			return true
+		}
+		if numA < numB {
+			return false
+		}
+		// If equal, continue to next segment
+	}
+
+	// All segments are equal
+	return false
 }
 
 // findAssetForPlatform finds the appropriate asset for the current platform

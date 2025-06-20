@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/victorkazakov/kportforward/internal/config"
+	"github.com/victorkazakov/kportforward/internal/updater"
 	"github.com/victorkazakov/kportforward/internal/utils"
 )
 
@@ -54,6 +56,7 @@ type Model struct {
 	kubeContext     string
 	lastUpdate      time.Time
 	updateAvailable bool
+	UpdateInfo      *updater.UpdateInfo // Added for rich update info
 
 	// UI Handler status
 	grpcUIEnabled    bool
@@ -373,7 +376,27 @@ func (m *Model) renderHeader() string {
 
 	updateNotice := ""
 	if m.updateAvailable {
-		updateNotice = lipgloss.NewStyle().Foreground(warningColor).Render("Update Available!")
+		// Create basic update notice
+		basicNotice := "Update Available!"
+
+		// Check if this is a Homebrew installation
+		execPath, _ := os.Executable()
+		isHomebrew := strings.Contains(execPath, "/Cellar/kportforward") ||
+			strings.Contains(execPath, "/opt/homebrew")
+
+		// If we have detailed update info and it's a Homebrew installation,
+		// include the version and update method
+		if m.UpdateInfo != nil {
+			if isHomebrew {
+				basicNotice = fmt.Sprintf("Update Available! (%s → %s via brew upgrade)",
+					m.UpdateInfo.CurrentVersion, m.UpdateInfo.LatestVersion)
+			} else {
+				basicNotice = fmt.Sprintf("Update Available! (%s → %s)",
+					m.UpdateInfo.CurrentVersion, m.UpdateInfo.LatestVersion)
+			}
+		}
+
+		updateNotice = lipgloss.NewStyle().Foreground(warningColor).Render(basicNotice)
 	}
 
 	// Calculate running/total services

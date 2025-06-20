@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/victorkazakov/kportforward/internal/utils"
@@ -168,12 +169,32 @@ func (m *Manager) PrepareUpdate(updateInfo *UpdateInfo) error {
 
 	m.logger.Info("Preparing update %s", updateInfo.LatestVersion)
 
+	// Check for installation method (Homebrew vs direct download)
+	if isHomebrewInstalled() {
+		m.logger.Info("Homebrew installation detected, recommending update using 'brew upgrade kportforward'")
+		return nil
+	}
+
 	// TODO: Implement download and verification
 	// For now, just log that we would download
 	m.logger.Info("Would download from: %s", updateInfo.DownloadURL)
 	m.logger.Info("Asset size: %d bytes", updateInfo.AssetSize)
 
 	return nil
+}
+
+// isHomebrewInstalled checks if the application was installed via Homebrew
+func isHomebrewInstalled() bool {
+	// Look for Homebrew cellar path in executable path
+	execPath, err := os.Executable()
+	if err != nil {
+		return false
+	}
+
+	// Check if path contains Homebrew cellar path
+	return strings.Contains(execPath, "/usr/local/Cellar/kportforward") ||
+		strings.Contains(execPath, "/opt/homebrew/Cellar/kportforward") ||
+		strings.Contains(execPath, "/home/linuxbrew/.linuxbrew/Cellar/kportforward")
 }
 
 // getUserCacheDir returns the appropriate cache directory for the current platform

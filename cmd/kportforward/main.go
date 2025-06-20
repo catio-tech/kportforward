@@ -146,7 +146,10 @@ func runPortForward(cmd *cobra.Command, args []string) {
 	}
 
 	// Initialize and start update manager
-	updateManager := updater.NewManager("catio-tech", "kportforward", version, logger)
+	// Repository information for update checks - ensure this matches your GitHub repository
+	repoOwner := "catio-tech"
+	repoName := "kportforward"
+	updateManager := updater.NewManager(repoOwner, repoName, version, logger)
 	if err := updateManager.Start(); err != nil {
 		logger.Error("Failed to start update manager: %v", err)
 		// Don't exit - updates are not critical

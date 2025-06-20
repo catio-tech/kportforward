@@ -82,6 +82,10 @@ func (t *TUI) UpdateKubernetesContext(context string) {
 // NotifyUpdateAvailable sends an update notification to the TUI
 func (t *TUI) NotifyUpdateAvailable(updateInfo *updater.UpdateInfo) {
 	if t.program != nil {
+		// Store the updateInfo in the model for detailed information
+		t.model.UpdateInfo = updateInfo
+
+		// Send update availability message
 		t.program.Send(UpdateAvailableMsg(updateInfo != nil && updateInfo.Available))
 	}
 }

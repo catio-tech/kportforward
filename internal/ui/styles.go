@@ -46,6 +46,11 @@ var (
 			Foreground(accentColor).
 			Italic(true)
 
+	// Update notification style
+	updateStyle = lipgloss.NewStyle().
+			Foreground(warningColor).
+			Bold(true)
+
 	// Status indicator styles
 	statusRunningStyle = lipgloss.NewStyle().
 				Foreground(successColor).
