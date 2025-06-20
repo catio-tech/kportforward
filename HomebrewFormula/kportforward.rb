@@ -24,11 +24,12 @@ class Kportforward < Formula
   depends_on "kubectl" => :recommended
 
   def install
-    # The downloaded file is a binary with no extension
-    # Rename it to kportforward and place it in bin
-    bin.install Dir["kportforward-*"].first => "kportforward" if Dir["kportforward-*"].any?
-    # If the file doesn't have a name pattern matching kportforward-*, assume it's just the binary
-    bin.install Pathname.pwd.children.first => "kportforward" if !Dir["kportforward-*"].any?
+    # Simple binary installation
+    bin.install buildpath/"kportforward-darwin-arm64" => "kportforward" if Hardware::CPU.arm? && OS.mac?
+    bin.install buildpath/"kportforward-darwin-amd64" => "kportforward" if !Hardware::CPU.arm? && OS.mac?
+    bin.install buildpath/"kportforward-linux-amd64" => "kportforward" if OS.linux? && Hardware::CPU.intel?
+    
+    # Ensure binary is executable
     chmod 0755, bin/"kportforward"
   end
 
