@@ -21,11 +21,10 @@ class Kportforward < Formula
   depends_on "kubectl" => :recommended
 
   def install
-    # The downloaded binary has no file extension
-    binary_name = File.basename(url.to_s.split("/").last)
-    
-    # Move the binary to the bin directory with the correct name
-    bin.install binary_name => "kportforward"
+    # Move the downloaded binary to the bin directory with the name "kportforward"
+    # First, find what files we have in the current directory
+    binary = Dir["*"].first
+    bin.install binary => "kportforward"
     
     # Ensure binary is executable
     chmod 0755, bin/"kportforward"
