@@ -20,20 +20,38 @@ A modern, cross-platform Kubernetes port-forward manager with a rich terminal UI
 
 ## 📥 Installation
 
-### Quick Install
+### Homebrew (macOS - Recommended)
 
-Download the latest release for your platform:
+The easiest way to install on macOS is with Homebrew:
 
 ```bash
-# macOS (Intel)
+# Install from Homebrew
+brew tap catio-tech/kportforward https://github.com/catio-tech/kportforward
+brew install kportforward
+```
+
+### Quick Install
+
+Alternatively, download the latest release for your platform:
+
+```bash
+# macOS (Intel) - no sudo required
 curl -L https://github.com/catio-tech/kportforward/releases/latest/download/kportforward-darwin-amd64 -o kportforward
 chmod +x kportforward
-sudo mv kportforward /usr/local/bin/
+mkdir -p ~/bin
+mv kportforward ~/bin/
+# Then add to PATH if you haven't already:
+# echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
+# source ~/.zshrc
 
-# macOS (Apple Silicon)
+# macOS (Apple Silicon) - no sudo required
 curl -L https://github.com/catio-tech/kportforward/releases/latest/download/kportforward-darwin-arm64 -o kportforward
 chmod +x kportforward
-sudo mv kportforward /usr/local/bin/
+mkdir -p ~/bin
+mv kportforward ~/bin/
+# Then add to PATH if you haven't already:
+# echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
+# source ~/.zshrc
 
 # Linux
 curl -L https://github.com/catio-tech/kportforward/releases/latest/download/kportforward-linux-amd64 -o kportforward

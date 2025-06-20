@@ -132,6 +132,28 @@ go tool pprof mem.prof
 ### Development Dependencies
 - GitHub CLI (`gh`) for releases: `brew install gh`
 
+### Installation Methods
+
+#### Homebrew (macOS - Recommended)
+```bash
+# Install from Homebrew
+brew tap catio-tech/kportforward https://github.com/catio-tech/kportforward
+brew install kportforward
+```
+
+#### Manual Installation
+Alternatively, install to user directory (no sudo required):
+```bash
+# macOS (Intel/ARM)
+curl -L https://github.com/catio-tech/kportforward/releases/latest/download/kportforward-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/') -o kportforward
+chmod +x kportforward
+mkdir -p ~/bin
+mv kportforward ~/bin/
+# Then add to PATH if needed:
+# echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
+# source ~/.zshrc
+```
+
 ## Architecture
 
 The application uses modern Go patterns and frameworks:
