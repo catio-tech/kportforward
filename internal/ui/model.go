@@ -436,15 +436,16 @@ func (m *Model) renderTable() string {
 
 	// Calculate column widths based on terminal width
 	nameWidth := 25
-	statusWidth := 10
-	urlWidth := 35 // Increased to account for emoji icons
+	statusWidth := 15 // Increased to fit "Reconnecting" status
+	urlWidth := 35    // Increased to account for emoji icons
 	typeWidth := 8
+	portWidth := 6 // Width for port number
 	uptimeWidth := 10
-	errorWidth := m.width - nameWidth - statusWidth - urlWidth - typeWidth - uptimeWidth - 20
+	errorWidth := m.width - nameWidth - statusWidth - urlWidth - typeWidth - portWidth - uptimeWidth - 24
 
 	if errorWidth < 10 {
 		errorWidth = 10
-		urlWidth = m.width - nameWidth - statusWidth - typeWidth - uptimeWidth - errorWidth - 20
+		urlWidth = m.width - nameWidth - statusWidth - typeWidth - portWidth - uptimeWidth - errorWidth - 24
 	}
 
 	// Table header
@@ -453,6 +454,7 @@ func (m *Model) renderTable() string {
 		FormatTableHeader(fmt.Sprintf("%-*s", statusWidth, "Status")),
 		FormatTableHeader(fmt.Sprintf("%-*s", urlWidth, "URL")),
 		FormatTableHeader(fmt.Sprintf("%-*s", typeWidth, "Type")),
+		FormatTableHeader(fmt.Sprintf("%-*s", portWidth, "Port")),
 		FormatTableHeader(fmt.Sprintf("%-*s", uptimeWidth, "Uptime")),
 		FormatTableHeader(fmt.Sprintf("%-*s", errorWidth, "Error/Status")),
 	}
@@ -471,6 +473,12 @@ func (m *Model) renderTable() string {
 		statusContent := service.Status
 		urlContent := m.formatServiceURL(service, serviceName, urlWidth)
 		typeContent := truncateString(m.getServiceType(serviceName), typeWidth)
+
+		// Port column content
+		portContent := fmt.Sprintf("%d", service.LocalPort)
+		if service.LocalPort == 0 {
+			portContent = "-"
+		}
 
 		uptimeContent := "-"
 		if !service.StartTime.IsZero() {
@@ -506,11 +514,12 @@ func (m *Model) renderTable() string {
 		}
 
 		typeCol := fmt.Sprintf("%-*s", typeWidth, typeContent)
+		portCol := fmt.Sprintf("%-*s", portWidth, portContent)
 		uptimeCol := fmt.Sprintf("%-*s", uptimeWidth, uptimeContent)
 		errorCol := fmt.Sprintf("%-*s", errorWidth, errorContent)
 
 		// Combine row with single spaces between columns
-		rowContent := nameCol + " " + statusCol + " " + urlCol + " " + typeCol + " " + uptimeCol + " " + errorCol
+		rowContent := nameCol + " " + statusCol + " " + urlCol + " " + typeCol + " " + portCol + " " + uptimeCol + " " + errorCol
 
 		rows = append(rows, FormatTableRow(rowContent, selected))
 	}
