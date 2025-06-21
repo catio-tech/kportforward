@@ -27,9 +27,13 @@ A modern, cross-platform Kubernetes port-forward manager with a rich terminal UI
 The easiest way to install on macOS is with Homebrew:
 
 ```bash
-# Install from Homebrew
-brew tap catio-tech/kportforward https://github.com/catio-tech/kportforward
+# Install from Homebrew (preferred SSH method)
+brew tap catio-tech/kportforward git@github.com:catio-tech/kportforward.git
 brew install kportforward
+
+# Alternative HTTPS method
+# brew tap catio-tech/kportforward https://github.com/catio-tech/kportforward
+# brew install kportforward
 ```
 
 ### Quick Install
