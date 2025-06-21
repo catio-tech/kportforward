@@ -3,8 +3,6 @@
 A modern, cross-platform Kubernetes port-forward manager with a rich terminal UI, automatic recovery, and built-in update system.
 
 [![Build Status](https://github.com/catio-tech/kportforward/workflows/Build%20and%20Test/badge.svg)](https://github.com/catio-tech/kportforward/actions)
-[![Release](https://img.shields.io/github/v/release/catio-tech/kportforward)](https://github.com/catio-tech/kportforward/releases)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/catio-tech/kportforward)](https://go.dev/)
 
 ## ✨ Features
 
