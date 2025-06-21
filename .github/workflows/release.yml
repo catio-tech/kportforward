@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   build-and-release:
@@ -135,7 +136,18 @@ jobs:
         git push origin homebrew-update-${{ github.ref_name }}
         
         # Create pull request to update formula
-        gh pr create --title "Update Homebrew formula for ${{ github.ref_name }}" \
+        echo "Creating pull request for homebrew formula update..."
+        
+        # Try with gh cli first
+        if gh pr create --title "Update Homebrew formula for ${{ github.ref_name }}" \
                      --body "Updates the Homebrew formula to version $FORMULA_VERSION with new checksums." \
                      --base main \
-                     --head homebrew-update-${{ github.ref_name }}
+                     --head homebrew-update-${{ github.ref_name }}; then
+          echo "Pull request created successfully!"
+        else
+          echo "Could not create PR automatically. A branch has been pushed with the formula updates."
+          echo "Please manually create a PR from the 'homebrew-update-${{ github.ref_name }}' branch."
+          
+          # Output PR creation URL for logs
+          echo "Manual PR creation URL: https://github.com/catio-tech/kportforward/pull/new/homebrew-update-${{ github.ref_name }}"
+        fi
