@@ -45,37 +45,45 @@ echo "  darwin-amd64: ${DARWIN_AMD64_CHECKSUM}"
 echo "  darwin-arm64: ${DARWIN_ARM64_CHECKSUM}"
 echo "  linux-amd64: ${LINUX_AMD64_CHECKSUM}"
 
-# Update the formula with the new version and checksums
-# Using sed with different delimiters to avoid issues with slashes in URLs
-sed -i.bak \
-    -e "s/^  version \".*\"/  version \"${FORMULA_VERSION}\"/" \
-    -e "s/sha256 \".*\"/sha256 \"${DARWIN_ARM64_CHECKSUM}\"/" \
-    -e "0,/sha256 \".*\"/{//!b};0,/sha256 \".*\"/{s/sha256 \".*\"/sha256 \"${DARWIN_ARM64_CHECKSUM}\"/}" \
-    -e "0,/sha256 \".*\"/{//!b};0,/sha256 \".*\"/{s/sha256 \".*\"/sha256 \"${DARWIN_AMD64_CHECKSUM}\"/;n;b}" \
-    -e "s|url \"https://github.com/catio-tech/kportforward/releases/latest/download/|url \"https://github.com/catio-tech/kportforward/releases/download/${VERSION}/|g" \
-    ${FORMULA_PATH}
+# Create a new formula with the updated version and checksums
+cat > ${FORMULA_PATH} << EOF
+class Kportforward < Formula
+  desc "Modern Kubernetes port-forward manager with TUI"
+  homepage "https://github.com/catio-tech/kportforward"
+  license "MIT"
+  version "${FORMULA_VERSION}"
 
-# Handle Linux checksum separately since it's harder to match with sed patterns
-awk -v checksum="${LINUX_AMD64_CHECKSUM}" '
-    /linux-amd64/ { 
-        print $0; 
-        getline; 
-        sub(/sha256 ".*"/, "sha256 \"" checksum "\""); 
-        print; 
-        next; 
-    } 
-    { print }
-' ${FORMULA_PATH}.bak > ${FORMULA_PATH}
+  # Use explicit file naming and SHA256 checksums
+  if OS.mac?
+    if Hardware::CPU.arm?
+      url "https://github.com/catio-tech/kportforward/releases/download/${VERSION}/kportforward-darwin-arm64"
+      sha256 "${DARWIN_ARM64_CHECKSUM}"
+    else
+      url "https://github.com/catio-tech/kportforward/releases/download/${VERSION}/kportforward-darwin-amd64"
+      sha256 "${DARWIN_AMD64_CHECKSUM}"
+    end
+  elsif OS.linux? && Hardware::CPU.intel?
+    url "https://github.com/catio-tech/kportforward/releases/download/${VERSION}/kportforward-linux-amd64"
+    sha256 "${LINUX_AMD64_CHECKSUM}"
+  end
 
-# Remove backup file
-rm ${FORMULA_PATH}.bak
+  depends_on "kubectl" => :recommended
 
-# Change URLs from /latest/download/ to /download/VERSION/
-sed -i.bak \
-    -e "s|releases/latest/download/|releases/download/${VERSION}/|g" \
-    ${FORMULA_PATH}
+  def install
+    # Move the downloaded binary to the bin directory with the name "kportforward"
+    # First, find what files we have in the current directory
+    binary = Dir["*"].first
+    bin.install binary => "kportforward"
+    
+    # Ensure binary is executable
+    chmod 0755, bin/"kportforward"
+  end
 
-rm ${FORMULA_PATH}.bak
+  test do
+    assert_match(/kportforward/i, shell_output("#{bin}/kportforward version 2>&1", 2))
+  end
+end
+EOF
 
 echo "Homebrew formula updated successfully!"
 echo "Review the changes:"
