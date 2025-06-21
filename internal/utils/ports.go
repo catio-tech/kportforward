@@ -29,14 +29,42 @@ func FindAvailablePort(startPort int) (int, error) {
 }
 
 // CheckPortConnectivity tests if a service is responding on the given port
+// Uses retry logic to be resilient against transient connectivity issues
 func CheckPortConnectivity(port int) bool {
+	// Use 3 retry attempts with 750ms delay and 2s timeout
+	// This gives services more time to respond and handles more transient issues
+	return CheckPortConnectivityWithRetries(port, 3, 750*time.Millisecond, 2*time.Second)
+}
+
+// CheckPortConnectivityWithRetries tests port connectivity with configurable retries
+func CheckPortConnectivityWithRetries(port int, retries int, retryDelay time.Duration, timeout time.Duration) bool {
 	address := fmt.Sprintf("localhost:%d", port)
-	conn, err := net.DialTimeout("tcp", address, 1*time.Second)
-	if err != nil {
-		return false
+
+	// Track the number of successful connections (require at least 2 successful connections)
+	successCount := 0
+	requiredSuccesses := 1 // For normal health checks, one success is enough
+
+	// Try up to the specified number of times
+	for attempt := 1; attempt <= retries; attempt++ {
+		conn, err := net.DialTimeout("tcp", address, timeout)
+		if err == nil {
+			// Connection successful
+			conn.Close()
+			successCount++
+
+			// If we got a successful connection, one is enough for normal health checks
+			if successCount >= requiredSuccesses {
+				return true
+			}
+		}
+
+		// Don't sleep after the last attempt
+		if attempt < retries {
+			time.Sleep(retryDelay)
+		}
 	}
-	defer conn.Close()
-	return true
+
+	return false
 }
 
 // ResolvePortConflicts checks for port conflicts in a service map and resolves them

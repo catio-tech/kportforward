@@ -68,6 +68,10 @@ var (
 				Foreground(mutedColor).
 				Bold(true)
 
+	statusDegradedStyle = lipgloss.NewStyle().
+				Foreground(warningColor).
+				Bold(true)
+
 	// Table styles
 	tableHeaderStyle = lipgloss.NewStyle().
 				Foreground(primaryColor).
@@ -115,6 +119,8 @@ func GetStatusStyle(status string) lipgloss.Style {
 		return statusStartingStyle
 	case "Cooldown":
 		return statusCooldownStyle
+	case "Degraded":
+		return statusDegradedStyle
 	default:
 		return statusStartingStyle
 	}

@@ -20,7 +20,8 @@ type TUI struct {
 }
 
 // NewTUI creates a new terminal user interface
-func NewTUI(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs map[string]config.Service, manager UIURLProvider) *TUI {
+func NewTUI(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs map[string]config.Service,
+	manager UIURLProvider, contextChan <-chan string) *TUI {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	model := NewModel(statusChan, serviceConfigs, manager)
@@ -29,6 +30,15 @@ func NewTUI(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs ma
 		tea.WithAltScreen(), // Use alternate screen buffer
 		// Mouse support removed to enable text selection in terminal
 	)
+
+	// Start listening for context updates
+	go func() {
+		for context := range contextChan {
+			if program != nil {
+				program.Send(ContextUpdateMsg(context))
+			}
+		}
+	}()
 
 	return &TUI{
 		program:    program,

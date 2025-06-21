@@ -26,6 +26,12 @@ type ServiceManager struct {
 	failureCount   int
 	cooldownUntil  time.Time
 	backoffSeconds []int
+
+	// Health check fields
+	healthCheckFailures int
+	consecutiveFailures int
+	maxFailureThreshold int
+	lastHealthCheckTime time.Time
 }
 
 // NewServiceManager creates a new service manager
@@ -33,12 +39,16 @@ func NewServiceManager(name string, service config.Service, logger *utils.Logger
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &ServiceManager{
-		name:           name,
-		config:         service,
-		logger:         logger,
-		ctx:            ctx,
-		cancel:         cancel,
-		backoffSeconds: []int{5, 10, 20, 40, 60}, // Exponential backoff: 5s, 10s, 20s, 40s, 60s max
+		name:                name,
+		config:              service,
+		logger:              logger,
+		ctx:                 ctx,
+		cancel:              cancel,
+		backoffSeconds:      []int{5, 10, 20, 40, 60}, // Exponential backoff: 5s, 10s, 20s, 40s, 60s max
+		healthCheckFailures: 0,
+		consecutiveFailures: 0,
+		maxFailureThreshold: 3, // Require 3 consecutive failures before marking as failed
+		lastHealthCheckTime: time.Now(),
 		status: &config.ServiceStatus{
 			Name:         name,
 			Status:       "Starting",
@@ -91,6 +101,14 @@ func (sm *ServiceManager) Start() error {
 	sm.status.LastError = ""
 	sm.status.InCooldown = false
 
+	// Reset health check counters
+	sm.healthCheckFailures = 0
+	sm.consecutiveFailures = 0
+	sm.lastHealthCheckTime = time.Now()
+
+	// Clear any lingering status messages from previous runs
+	sm.status.StatusMessage = ""
+
 	sm.logger.Info("Started port-forward for %s: %s:%d -> %d",
 		sm.name, sm.config.Target, sm.config.TargetPort, actualPort)
 
@@ -132,10 +150,9 @@ func (sm *ServiceManager) Restart() error {
 }
 
 // IsHealthy checks if the service is running and responding
+// This is a simplified version as the main health tracking logic is now in GetStatus
+// to avoid mutex deadlocks
 func (sm *ServiceManager) IsHealthy() bool {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-
 	// Check if process is running
 	if sm.cmd == nil || sm.cmd.Process == nil {
 		return false
@@ -145,26 +162,150 @@ func (sm *ServiceManager) IsHealthy() bool {
 		return false
 	}
 
-	// Check port connectivity
+	// Check port connectivity with retries built into the CheckPortConnectivity function
 	return utils.CheckPortConnectivity(sm.status.LocalPort)
 }
 
 // GetStatus returns the current status of the service
 func (sm *ServiceManager) GetStatus() config.ServiceStatus {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	// Make a copy of the status to return
+	statusCopy := *sm.status
 
 	// Update status based on health check, but allow grace period for startup
-	if sm.status.Status == "Running" {
+	if sm.status.Status == "Running" || sm.status.Status == "Degraded" {
 		// Give service 5 seconds grace period after startup before health checking
 		gracePeriod := 5 * time.Second
-		if time.Since(sm.status.StartTime) > gracePeriod && !sm.IsHealthy() {
-			sm.status.Status = "Failed"
-			sm.status.LastError = "Health check failed"
+		if time.Since(sm.status.StartTime) > gracePeriod {
+			// This check doesn't call IsHealthy() directly to avoid deadlock
+			// as IsHealthy already acquires the lock
+
+			// Check process running
+			isProcessRunning := true
+			if sm.cmd == nil || sm.cmd.Process == nil || !utils.IsProcessRunning(sm.cmd.Process.Pid) {
+				isProcessRunning = false
+			}
+
+			// Check port connectivity - with retries built in
+			isPortConnected := false
+			if isProcessRunning {
+				isPortConnected = utils.CheckPortConnectivity(sm.status.LocalPort)
+				if !isPortConnected {
+					sm.logger.Debug("Port connectivity check failed for %s on port %d", sm.name, sm.status.LocalPort)
+				}
+			}
+
+			// Update consecutive failures
+			isHealthy := isProcessRunning && isPortConnected
+
+			// Update consecutive failure counter
+			if isHealthy {
+				// Only consider it truly recovered if we have multiple successful checks
+				// This avoids flapping between Running/Failed for unstable connections
+				if sm.status.Status == "Failed" {
+					// For previously failed services, require 3 consecutive successful checks
+					// before marking as recovered (stay in Failed state during this period)
+					sm.consecutiveFailures--
+					if sm.consecutiveFailures <= 0 {
+						sm.logger.Info("Service %s confirmed recovered after multiple successful health checks",
+							sm.name)
+						sm.status.Status = "Running"
+						sm.status.LastError = ""
+						sm.status.StatusMessage = ""
+						sm.resetFailureCount() // Reset exponential backoff
+
+						// Update the copy we'll return
+						statusCopy = *sm.status
+					} else {
+						sm.logger.Debug("Service %s shows signs of recovery (%d more checks needed)",
+							sm.name, sm.consecutiveFailures)
+					}
+				} else if sm.status.Status == "Degraded" {
+					// For services that were in Degraded state but now passing health checks
+					sm.consecutiveFailures--
+					if sm.consecutiveFailures <= 0 {
+						sm.logger.Info("Service %s recovered from degraded state",
+							sm.name)
+						sm.status.Status = "Running"
+						sm.status.StatusMessage = ""
+						sm.status.LastError = ""
+
+						// Update the copy we'll return
+						statusCopy = *sm.status
+					}
+				} else {
+					// For services that are running normally
+					if sm.consecutiveFailures > 0 {
+						sm.logger.Debug("Health check recovered for %s after %d consecutive failures",
+							sm.name, sm.consecutiveFailures)
+					}
+					sm.consecutiveFailures = 0
+
+					// Always clear any lingering status messages when the service is healthy
+					if sm.status.StatusMessage != "" {
+						sm.logger.Debug("Clearing status message for %s: \"%s\"", sm.name, sm.status.StatusMessage)
+						sm.status.StatusMessage = ""
+						// Update the copy we'll return
+						statusCopy = *sm.status
+					}
+				}
+			} else {
+				sm.consecutiveFailures++
+				sm.healthCheckFailures++
+
+				// Log why the health check failed (process or port)
+				if !isProcessRunning {
+					sm.logger.Debug("Health check failed for %s: process not running (PID %d)",
+						sm.name, sm.status.PID)
+				} else if !isPortConnected {
+					sm.logger.Debug("Health check failed for %s: port %d not responding (%d consecutive failures, %d total)",
+						sm.name, sm.status.LocalPort, sm.consecutiveFailures, sm.healthCheckFailures)
+				}
+
+				// On first health check failure, immediately mark as Degraded
+				// This ensures users see the issue right away instead of showing "Running" when it's not
+				if sm.status.Status == "Running" {
+					sm.status.Status = "Degraded"
+					sm.status.StatusMessage = "Port connectivity issues"
+					sm.logger.Warn("Service %s is degraded - health check failing on port %d",
+						sm.name, sm.status.LocalPort)
+
+					// Set the consecutive failures to 2 so it takes 2 successful checks to recover
+					sm.consecutiveFailures = 2
+
+					// Update the copy we'll return
+					statusCopy = *sm.status
+				}
+			}
+
+			// Only mark as failed if we've exceeded the consecutive failure threshold
+			if !isHealthy && sm.consecutiveFailures >= sm.maxFailureThreshold && sm.status.Status != "Failed" {
+				// Set higher value to require more successful checks to recover
+				// This creates a hysteresis effect to prevent status flapping
+				sm.consecutiveFailures = 3
+
+				sm.status.Status = "Failed"
+				// Add more details about the failure reason
+				if !isProcessRunning {
+					sm.status.LastError = fmt.Sprintf("Process not running (PID %d)", sm.status.PID)
+				} else if !isPortConnected {
+					sm.status.LastError = fmt.Sprintf("Port %d not responding after multiple attempts", sm.status.LocalPort)
+				} else {
+					sm.status.LastError = fmt.Sprintf("Health check failed after %d consecutive failures", sm.consecutiveFailures)
+				}
+
+				sm.logger.Warn("Service %s marked as failed: %s", sm.name, sm.status.LastError)
+
+				// Update the copy we'll return
+				statusCopy = *sm.status
+			}
+			// Note: Recovery is now handled in the isHealthy block above to require multiple successful checks
 		}
 	}
 
-	return *sm.status
+	return statusCopy
 }
 
 // SetStatusMessage sets a transient status message for the service

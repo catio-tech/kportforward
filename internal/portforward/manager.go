@@ -1,8 +1,10 @@
 package portforward
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"reflect"
 	"sync"
@@ -40,6 +42,7 @@ type Manager struct {
 	// Monitoring
 	monitoringTicker *time.Ticker
 	statusChan       chan map[string]config.ServiceStatus
+	contextChan      chan string
 }
 
 // NewManager creates a new port-forward manager
@@ -47,12 +50,13 @@ func NewManager(cfg *config.Config, logger *utils.Logger) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Manager{
-		services:   make(map[string]*ServiceManager),
-		config:     cfg,
-		logger:     logger,
-		ctx:        ctx,
-		cancel:     cancel,
-		statusChan: make(chan map[string]config.ServiceStatus, 1),
+		services:    make(map[string]*ServiceManager),
+		config:      cfg,
+		logger:      logger,
+		ctx:         ctx,
+		cancel:      cancel,
+		statusChan:  make(chan map[string]config.ServiceStatus, 1),
+		contextChan: make(chan string, 1),
 	}
 }
 
@@ -170,6 +174,11 @@ func (m *Manager) GetStatusChannel() <-chan map[string]config.ServiceStatus {
 	return m.statusChan
 }
 
+// GetContextChannel returns a channel that receives context updates
+func (m *Manager) GetContextChannel() <-chan string {
+	return m.contextChan
+}
+
 // GetCurrentStatus returns the current status of all services
 func (m *Manager) GetCurrentStatus() map[string]config.ServiceStatus {
 	m.mutex.RLock()
@@ -233,7 +242,22 @@ func (m *Manager) monitorServices() {
 	statusMap := make(map[string]config.ServiceStatus)
 
 	for name, sm := range services {
+		// Get status (this runs health checks internally)
 		status := sm.GetStatus()
+
+		// If status is Running but still has a status message about connectivity issues,
+		// perform an explicit health check and clear message if service is actually healthy
+		if status.Status == "Running" && status.StatusMessage == "Port connectivity issues" {
+			// Do a direct health check (bypassing status caching)
+			if sm.IsHealthy() {
+				// If it's really healthy, clear the status message
+				sm.SetStatusMessage("")
+				// Get updated status
+				status = sm.GetStatus()
+				m.logger.Debug("Cleared lingering status message for healthy service: %s", name)
+			}
+		}
+
 		statusMap[name] = status
 
 		// Check if service needs to be restarted
@@ -303,7 +327,18 @@ func (m *Manager) checkKubernetesContext() {
 	currentContext := m.kubernetesContext
 	m.mutex.RUnlock()
 
-	if newContext != currentContext {
+	// Log context check for debugging purposes
+	m.logger.Debug("Checking Kubernetes context - Current: %s, New: %s", currentContext, newContext)
+
+	// Always update context in TUI even if it hasn't changed (to ensure it's displayed)
+	select {
+	case m.contextChan <- newContext:
+		m.logger.Debug("Sent context update to TUI: %s", newContext)
+	default:
+		// Channel is full, skip this update
+	}
+
+	if newContext != currentContext && newContext != "N/A" {
 		m.logger.Info("Kubernetes context changed from %s to %s, restarting all services",
 			currentContext, newContext)
 
@@ -369,18 +404,34 @@ func (m *Manager) updateKubernetesContext() error {
 
 // getCurrentKubernetesContext retrieves the current kubectl context
 func (m *Manager) getCurrentKubernetesContext() (string, error) {
-	cmd := exec.Command("kubectl", "config", "current-context")
-	output, err := cmd.Output()
+	// Create command with timeout context to ensure it doesn't hang
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "kubectl", "config", "current-context")
+
+	// Add environment variables to ensure kubectl uses the right config
+	cmd.Env = append(os.Environ(), "KUBECONFIG="+os.ExpandEnv("$HOME/.kube/config"))
+
+	// Capture both stdout and stderr
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	// Run the command
+	err := cmd.Run()
 	if err != nil {
+		m.logger.Error("Failed to get current kubectl context: %v, stderr: %s", err, stderr.String())
 		return "N/A", err
 	}
 
 	// Remove trailing newline
-	context := string(output)
+	context := stdout.String()
 	if len(context) > 0 && context[len(context)-1] == '\n' {
 		context = context[:len(context)-1]
 	}
 
+	m.logger.Debug("Current kubectl context: %s", context)
 	return context, nil
 }
 
