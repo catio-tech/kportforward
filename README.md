@@ -8,10 +8,12 @@ A modern, cross-platform Kubernetes port-forward manager with a rich terminal UI
 
 ## ✨ Features
 
-- **🎨 Modern Terminal UI**: Interactive interface with real-time updates and keyboard navigation
-- **🔄 Automatic Recovery**: Monitors and automatically restarts failed port-forwards
+- **🎨 Modern Terminal UI**: Interactive interface with real-time updates, port display, and keyboard navigation
+- **🔄 Automatic Recovery**: Monitors and automatically restarts failed port-forwards with state tracking
 - **🌐 Cross-Platform**: Works on macOS, Linux, and Windows
-- **📊 Smart Monitoring**: Health checks with exponential backoff for frequently failing services
+- **📊 Smart Monitoring**: Health checks with detailed service state management and visual feedback
+- **👁️ Service State Visualization**: Shows "Connecting" and "Reconnecting" states for better user feedback
+- **🔄 Context Awareness**: Fast detection and response to Kubernetes context changes
 - **🆙 Auto-Updates**: Daily update checks with in-UI notifications
 - **🎯 UI Integration**: Automated gRPC UI and Swagger UI for API services
 - **⚙️ Embedded Config**: Pre-configured services with user override support
@@ -227,21 +229,23 @@ git commit --no-verify
 ## 📱 Terminal UI
 
 ```
-┌─ kportforward v1.0.0 ─ Context: my-cluster ─ Services (18/18 running) ──┐
+┌─ kportforward v1.3.0 ─ Context: my-cluster ─ Services (18/18 running) ──┐
 │                                                                           │
 │ Services (18/18 running)  [↑↓] Navigate [Enter] Details [q] Quit         │
 │                                                                           │
-│ Name                 Status    URL                      Type    Uptime    │
-│ ─────────────────────────────────────────────────────────────────────── │
-│ ● flyte-console      Running   http://localhost:8088    web     2h3m      │
-│ ● flyte-admin-rpc    Running   http://localhost:8089    rpc     2h3m      │
-│ ● api-gateway        Running   http://localhost:8080    rest    1h45m     │
-│ ● process-monitor    Failed    -                        rpc     0s        │
-│ ...                                                                       │
-│                                                                           │
-│ Last Error: process-monitor: connection refused                           │
-│ [n/s/t/p/u] Sort by Name/Status/Type/Port/Uptime  [r] Reverse           │
-└───────────────────────────────────────────────────────────────────────────┘
+│ Name                 Status         URL                    Type   Port   Uptime  │
+│ ───────────────────────────────────────────────────────────────────────────── │
+│ ● flyte-console      Running        http://localhost:8088  web    8088   2h3m   │
+│ ● flyte-admin-rpc    Running        http://localhost:8089  rpc    8089   2h3m   │
+│ ● api-gateway        Running        http://localhost:8080  rest   8080   1h45m  │
+│ ● process-monitor    Failed         -                      rpc    -      0s     │
+│ ● auth-service       Connecting     -                      rest   8081   0s     │
+│ ● metrics-service    Reconnecting   -                      web    8082   0s     │
+│ ...                                                                            │
+│                                                                                │
+│ Status: Reconnecting due to context change                                     │
+│ [n/s/t/p/u] Sort by Name/Status/Type/Port/Uptime  [r] Reverse                 │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 🔧 Troubleshooting
@@ -249,6 +253,14 @@ git commit --no-verify
 ### Common Issues
 
 **Port conflicts**: kportforward automatically finds available ports when configured ports are in use.
+
+**Service state transitions**:
+- **Connecting**: Service is establishing initial connection (new port-forward)
+- **Reconnecting**: Service is re-establishing connection (after context change or temporary failure)
+- **Running**: Service is successfully connected and responding to health checks
+- **Degraded**: Service is running but experiencing intermittent connectivity issues
+- **Failed**: Service failed to connect or has persistent health check failures
+- **Cooldown**: Service is in backoff period after multiple failures
 
 **gRPC UI not starting**:
 - Install grpcui: `go install github.com/fullstorydev/grpcui/cmd/grpcui@latest`
@@ -263,10 +275,16 @@ git commit --no-verify
 - Look for "TCP connection test" messages in debug logs
 - Check Docker containers: `docker ps | grep kpf-swagger`
 
+**Services stuck in "Connecting" state**:
+- Verify service exists in the cluster: `kubectl get svc -n <namespace>`
+- Check if the Kubernetes context is valid: `kubectl config current-context`
+- Services will transition to "Failed" within 10 seconds if the service doesn't exist
+
 **Services frequently restarting**:
 - Services enter cooldown mode with exponential backoff
 - Check Kubernetes context: `kubectl config current-context`
 - Verify service exists: `kubectl get svc -n <namespace>`
+- Look for error messages in status column or details view
 
 ### Debug Mode
 
@@ -399,6 +417,7 @@ kportforward --log-file /var/log/kportforward.log
 
 - **[README.md](README.md)**: This file - project overview and usage
 - **[CLAUDE.md](CLAUDE.md)**: Developer guide and architecture documentation  
+- **[SERVICE_STATE_DIAGRAM.md](SERVICE_STATE_DIAGRAM.md)**: Comprehensive service state machine documentation
 - **[IMPLEMENTATION_LOG.md](IMPLEMENTATION_LOG.md)**: Development progress and technical decisions
 - **[PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md)**: Detailed performance analysis and benchmarks
 
