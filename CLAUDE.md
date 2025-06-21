@@ -136,9 +136,13 @@ go tool pprof mem.prof
 
 #### Homebrew (macOS - Recommended)
 ```bash
-# Install from Homebrew
-brew tap catio-tech/kportforward https://github.com/catio-tech/kportforward
+# Install from Homebrew (preferred SSH method)
+brew tap catio-tech/kportforward git@github.com:catio-tech/kportforward.git
 brew install kportforward
+
+# Alternative HTTPS method
+# brew tap catio-tech/kportforward https://github.com/catio-tech/kportforward
+# brew install kportforward
 ```
 
 #### Manual Installation
