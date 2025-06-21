@@ -491,7 +491,8 @@ func (m *Model) renderTable() string {
 
 		// Handle URL with proper width - style only the actual URL part
 		var urlCol string
-		if service.Status == "Running" || service.Status == "Degraded" {
+		if service.Status == "Running" || service.Status == "Degraded" ||
+			service.Status == "Connecting" || service.Status == "Reconnecting" {
 			// Only style if it's an actual URL, then pad to correct width using visual width
 			styledURL := FormatURL(urlContent)
 			visualWidthOfContent := visualWidth(urlContent)
@@ -544,7 +545,8 @@ func (m *Model) renderFooter() string {
 
 // formatServiceURL formats the URL for a service based on type and UI handler status
 func (m *Model) formatServiceURL(service config.ServiceStatus, serviceName string, maxWidth int) string {
-	if service.Status != "Running" && service.Status != "Degraded" {
+	if service.Status != "Running" && service.Status != "Degraded" &&
+		service.Status != "Connecting" && service.Status != "Reconnecting" {
 		return "-"
 	}
 

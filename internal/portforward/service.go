@@ -97,7 +97,11 @@ func (sm *ServiceManager) Start() error {
 	sm.cmd = cmd
 	sm.status.PID = cmd.Process.Pid
 	sm.status.StartTime = time.Now()
-	sm.status.Status = "Running"
+
+	// Set initial status to "Connecting" until health checks confirm it's running
+	// This provides better feedback during the connection establishment phase
+	sm.status.Status = "Connecting"
+	sm.status.StatusMessage = "Waiting for port-forward to establish"
 	sm.status.LastError = ""
 	sm.status.InCooldown = false
 
@@ -105,9 +109,6 @@ func (sm *ServiceManager) Start() error {
 	sm.healthCheckFailures = 0
 	sm.consecutiveFailures = 0
 	sm.lastHealthCheckTime = time.Now()
-
-	// Clear any lingering status messages from previous runs
-	sm.status.StatusMessage = ""
 
 	sm.logger.Info("Started port-forward for %s: %s:%d -> %d",
 		sm.name, sm.config.Target, sm.config.TargetPort, actualPort)
@@ -175,7 +176,8 @@ func (sm *ServiceManager) GetStatus() config.ServiceStatus {
 	statusCopy := *sm.status
 
 	// Update status based on health check, but allow grace period for startup
-	if sm.status.Status == "Running" || sm.status.Status == "Degraded" {
+	if sm.status.Status == "Running" || sm.status.Status == "Degraded" ||
+		sm.status.Status == "Connecting" || sm.status.Status == "Reconnecting" {
 		// Give service 5 seconds grace period after startup before health checking
 		gracePeriod := 5 * time.Second
 		if time.Since(sm.status.StartTime) > gracePeriod {
@@ -235,6 +237,26 @@ func (sm *ServiceManager) GetStatus() config.ServiceStatus {
 						// Update the copy we'll return
 						statusCopy = *sm.status
 					}
+				} else if sm.status.Status == "Connecting" {
+					// For services that just completed initial connection
+					sm.logger.Info("Service %s successfully connected",
+						sm.name)
+					sm.status.Status = "Running"
+					sm.status.StatusMessage = ""
+					sm.status.LastError = ""
+
+					// Update the copy we'll return
+					statusCopy = *sm.status
+				} else if sm.status.Status == "Reconnecting" {
+					// For services that just completed reconnection
+					sm.logger.Info("Service %s successfully reconnected",
+						sm.name)
+					sm.status.Status = "Running"
+					sm.status.StatusMessage = ""
+					sm.status.LastError = ""
+
+					// Update the copy we'll return
+					statusCopy = *sm.status
 				} else {
 					// For services that are running normally
 					if sm.consecutiveFailures > 0 {
@@ -264,9 +286,10 @@ func (sm *ServiceManager) GetStatus() config.ServiceStatus {
 						sm.name, sm.status.LocalPort, sm.consecutiveFailures, sm.healthCheckFailures)
 				}
 
-				// On first health check failure, immediately mark as Degraded
-				// This ensures users see the issue right away instead of showing "Running" when it's not
+				// On first health check failure, update status appropriately
+				// Handle each possible current state
 				if sm.status.Status == "Running" {
+					// Standard case - mark as Degraded
 					sm.status.Status = "Degraded"
 					sm.status.StatusMessage = "Port connectivity issues"
 					sm.logger.Warn("Service %s is degraded - health check failing on port %d",
@@ -274,6 +297,19 @@ func (sm *ServiceManager) GetStatus() config.ServiceStatus {
 
 					// Set the consecutive failures to 2 so it takes 2 successful checks to recover
 					sm.consecutiveFailures = 2
+
+					// Update the copy we'll return
+					statusCopy = *sm.status
+				} else if sm.status.Status == "Connecting" {
+					// For new connections, just leave as Connecting but update message
+					// This provides better feedback during initial connection phase
+					sm.status.StatusMessage = "Connection in progress..."
+
+					// Update the copy we'll return
+					statusCopy = *sm.status
+				} else if sm.status.Status == "Reconnecting" {
+					// For reconnections, just leave as Reconnecting but update message
+					sm.status.StatusMessage = "Reconnection in progress..."
 
 					// Update the copy we'll return
 					statusCopy = *sm.status

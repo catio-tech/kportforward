@@ -356,9 +356,19 @@ func (m *Manager) restartAllServices() {
 	m.mutex.RLock()
 	services := make([]*ServiceManager, 0, len(m.services))
 	for _, sm := range m.services {
+		// First set status to Reconnecting to indicate context change
+		sm.SetStatusMessage("Reconnecting due to context change")
+		// Update the UI immediately with the Reconnecting status
+		sm.mutex.Lock()
+		sm.status.Status = "Reconnecting"
+		sm.mutex.Unlock()
+
 		services = append(services, sm)
 	}
 	m.mutex.RUnlock()
+
+	// Give the UI a moment to update with the Reconnecting status
+	time.Sleep(200 * time.Millisecond)
 
 	for _, sm := range services {
 		if err := sm.Restart(); err != nil {

@@ -72,6 +72,14 @@ var (
 				Foreground(warningColor).
 				Bold(true)
 
+	statusConnectingStyle = lipgloss.NewStyle().
+				Foreground(accentColor).
+				Bold(true)
+
+	statusReconnectingStyle = lipgloss.NewStyle().
+				Foreground(accentColor).
+				Bold(true)
+
 	// Table styles
 	tableHeaderStyle = lipgloss.NewStyle().
 				Foreground(primaryColor).
@@ -121,6 +129,10 @@ func GetStatusStyle(status string) lipgloss.Style {
 		return statusCooldownStyle
 	case "Degraded":
 		return statusDegradedStyle
+	case "Connecting":
+		return statusConnectingStyle
+	case "Reconnecting":
+		return statusReconnectingStyle
 	default:
 		return statusStartingStyle
 	}
