@@ -129,6 +129,12 @@ portForwards:
     localPort: 8081
     namespace: "flyte"
     type: "other"
+  archie-backend:
+    target: "service/archie-backend"
+    targetPort: 50051
+    localPort: 50108
+    namespace: "catio-data-extraction"
+    type: "rpc"
 
 monitoringInterval: 1s
 uiOptions:
