@@ -135,6 +135,13 @@ portForwards:
     localPort: 50108
     namespace: "catio-data-extraction"
     type: "rpc"
+  # LLM Router
+  llm-router:
+    target: "service/llm-router"
+    targetPort: 80
+    localPort: 50107
+    namespace: "catio-data-extraction"
+    type: "rpc"
 
 monitoringInterval: 1s
 uiOptions:
