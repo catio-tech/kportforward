@@ -443,9 +443,15 @@ func (m *Model) renderTable() string {
 	uptimeWidth := 10
 	errorWidth := m.width - nameWidth - statusWidth - urlWidth - typeWidth - portWidth - uptimeWidth - 24
 
+	// Ensure minimum widths to prevent negative values
 	if errorWidth < 10 {
 		errorWidth = 10
 		urlWidth = m.width - nameWidth - statusWidth - typeWidth - portWidth - uptimeWidth - errorWidth - 24
+	}
+
+	// Ensure urlWidth is never negative or too small
+	if urlWidth < 5 {
+		urlWidth = 5
 	}
 
 	// Table header
@@ -675,10 +681,18 @@ func visualWidth(s string) int {
 
 // truncateString truncates a string to fit within the specified width
 func truncateString(s string, width int) string {
+	// Handle invalid width values
+	if width <= 0 {
+		return ""
+	}
 	if len(s) <= width {
 		return s
 	}
 	if width <= 3 {
+		// Ensure we don't exceed string length
+		if len(s) < width {
+			return s
+		}
 		return s[:width]
 	}
 	return s[:width-3] + "..."
