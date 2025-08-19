@@ -8,14 +8,14 @@ class Kportforward < Formula
   if OS.mac?
     if Hardware::CPU.arm?
       url "https://github.com/catio-tech/kportforward/releases/download/v1.5.1/kportforward-darwin-arm64"
-      sha256 "b241db65e8d3ea2a4cc5af17fcc4788a1aee1e3ffaf2a9bd6fd1aa89d7290e79"
+      sha256 "ad4e68969827772167e7ce0f7a40ae093ca8ad6baaa4a252b6f17a2cd922764a"
     else
       url "https://github.com/catio-tech/kportforward/releases/download/v1.5.1/kportforward-darwin-amd64"
-      sha256 "184efe7f451909a787720e06028cbbfedf8dd232d1f9d3a5be0c38b32d529fc3"
+      sha256 "37cb4e7acd812f02c7e967db35cd3ce9d250c2be140133ac152abe5d870aa442"
     end
   elsif OS.linux? && Hardware::CPU.intel?
     url "https://github.com/catio-tech/kportforward/releases/download/v1.5.1/kportforward-linux-amd64"
-    sha256 "c23cb99646982e72e2645b6e3179d2d1831dfb65fe5807060519de9f2faa1d96"
+    sha256 "ab84094d1d8e0fa14bb7fbfff92866a6a7ab197bba2a4405b18dca459741bac4"
   end
 
   depends_on "kubectl" => :recommended
