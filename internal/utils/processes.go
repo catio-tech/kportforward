@@ -57,27 +57,54 @@ func KillProcess(pid int) error {
 		return fmt.Errorf("invalid PID: %d", pid)
 	}
 
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return fmt.Errorf("failed to find process %d: %w", pid, err)
+	// First try to kill the process group to ensure all child processes are terminated
+	if err := KillProcessGroup(pid); err != nil {
+		// If process group kill fails, fall back to individual process kill
+		process, err := os.FindProcess(pid)
+		if err != nil {
+			return fmt.Errorf("failed to find process %d: %w", pid, err)
+		}
+
+		if runtime.GOOS == "windows" {
+			// On Windows, use taskkill for more reliable termination
+			cmd := exec.Command("taskkill", "/F", "/PID", strconv.Itoa(pid))
+			return cmd.Run()
+		}
+
+		// On Unix systems, send SIGTERM first, then SIGKILL if needed
+		if runtime.GOOS != "windows" {
+			err = process.Signal(syscall.SIGTERM)
+			if err != nil {
+				// If SIGTERM fails, try SIGKILL
+				return process.Signal(syscall.SIGKILL)
+			}
+		} else {
+			// On Windows, just kill the process
+			return process.Kill()
+		}
+	}
+
+	return nil
+}
+
+// KillProcessGroup terminates a process group to ensure all child processes are killed
+func KillProcessGroup(pid int) error {
+	if pid <= 0 {
+		return fmt.Errorf("invalid PID: %d", pid)
 	}
 
 	if runtime.GOOS == "windows" {
-		// On Windows, use taskkill for more reliable termination
-		cmd := exec.Command("taskkill", "/F", "/PID", strconv.Itoa(pid))
+		// On Windows, use taskkill with /T flag to terminate process tree
+		cmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(pid))
 		return cmd.Run()
 	}
 
-	// On Unix systems, send SIGTERM first, then SIGKILL if needed
-	if runtime.GOOS != "windows" {
-		err = process.Signal(syscall.SIGTERM)
-		if err != nil {
-			// If SIGTERM fails, try SIGKILL
-			return process.Signal(syscall.SIGKILL)
-		}
-	} else {
-		// On Windows, just kill the process
-		return process.Kill()
+	// On Unix systems, kill the entire process group
+	// Negative PID means kill the process group
+	err := syscall.Kill(-pid, syscall.SIGTERM)
+	if err != nil {
+		// If SIGTERM fails, try SIGKILL
+		return syscall.Kill(-pid, syscall.SIGKILL)
 	}
 
 	return nil

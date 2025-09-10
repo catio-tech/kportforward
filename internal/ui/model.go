@@ -14,12 +14,6 @@ import (
 	"github.com/victorkazakov/kportforward/internal/utils"
 )
 
-// UIURLProvider interface for accessing UI handler URLs
-type UIURLProvider interface {
-	GetGRPCUIURL(serviceName string) string
-	GetSwaggerUIURL(serviceName string) string
-}
-
 // SortField represents different sorting options
 type SortField int
 
@@ -47,6 +41,13 @@ const (
 	ViewDetail
 )
 
+// UIURLProvider interface for accessing UI handler URLs
+type UIManagerProvider interface {
+	GetGRPCUIURL(serviceName string) string
+	GetSwaggerUIURL(serviceName string) string
+	GetGlobalAccessStatus() bool
+}
+
 // Model represents the main TUI model
 type Model struct {
 	// Data
@@ -58,12 +59,15 @@ type Model struct {
 	updateAvailable bool
 	UpdateInfo      *updater.UpdateInfo // Added for rich update info
 
+	// Global access status
+	globalAccessHealthy bool
+
 	// UI Handler status
 	grpcUIEnabled    bool
 	swaggerUIEnabled bool
 
-	// Manager reference for accessing UI handler URLs
-	manager UIURLProvider
+	// Manager reference for accessing UI handler URLs and global status
+	manager UIManagerProvider
 
 	// UI state
 	selectedIndex int
@@ -100,18 +104,19 @@ type UIHandlerStatusMsg struct {
 type TickMsg time.Time
 
 // NewModel creates a new TUI model
-func NewModel(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs map[string]config.Service, manager UIURLProvider) *Model {
+func NewModel(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs map[string]config.Service, manager UIManagerProvider) *Model {
 	return &Model{
-		services:       make(map[string]config.ServiceStatus),
-		serviceConfigs: serviceConfigs,
-		serviceNames:   make([]string, 0),
-		selectedIndex:  0,
-		sortField:      SortByName,
-		sortReverse:    false,
-		viewMode:       ViewTable,
-		refreshRate:    250 * time.Millisecond,
-		statusChan:     statusChan,
-		manager:        manager,
+		services:            make(map[string]config.ServiceStatus),
+		serviceConfigs:      serviceConfigs,
+		serviceNames:        make([]string, 0),
+		selectedIndex:       0,
+		sortField:           SortByName,
+		sortReverse:         false,
+		viewMode:            ViewTable,
+		refreshRate:         250 * time.Millisecond,
+		statusChan:          statusChan,
+		manager:             manager,
+		globalAccessHealthy: true, // Start optimistically
 	}
 }
 
@@ -135,6 +140,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.services = map[string]config.ServiceStatus(msg)
 		m.updateServiceNames()
 		m.lastUpdate = time.Now()
+
+		// Update global access status if we have a manager
+		if m.manager != nil {
+			m.globalAccessHealthy = m.manager.GetGlobalAccessStatus()
+		}
+
 		return m, nil
 
 	case ContextUpdateMsg:
@@ -378,6 +389,19 @@ func (m *Model) renderHeader() string {
 			Render(fmt.Sprintf("K8s: %s", m.kubeContext))
 	}
 
+	// Global access status
+	globalStatus := ""
+	if m.globalAccessHealthy {
+		globalStatus = lipgloss.NewStyle().
+			Foreground(successColor).
+			Render("✅ Connected")
+	} else {
+		globalStatus = lipgloss.NewStyle().
+			Foreground(errorColor).
+			Bold(true).
+			Render("❌ Access Failed")
+	}
+
 	updateNotice := ""
 	if m.updateAvailable {
 		// Create basic update notice
@@ -420,6 +444,8 @@ func (m *Model) renderHeader() string {
 			title,
 			"  ",
 			context,
+			"  ",
+			globalStatus,
 			"  ",
 			updateNotice,
 			"  ",

@@ -21,7 +21,7 @@ type TUI struct {
 
 // NewTUI creates a new terminal user interface
 func NewTUI(statusChan <-chan map[string]config.ServiceStatus, serviceConfigs map[string]config.Service,
-	manager UIURLProvider, contextChan <-chan string) *TUI {
+	manager UIManagerProvider, contextChan <-chan string) *TUI {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	model := NewModel(statusChan, serviceConfigs, manager)

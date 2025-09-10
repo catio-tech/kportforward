@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -89,8 +90,17 @@ func (sm *ServiceManager) Start() error {
 	)
 	if err != nil {
 		sm.status.Status = "Failed"
-		sm.status.LastError = err.Error()
-		sm.handleFailure()
+
+		// Enhanced error classification
+		if sm.isAuthError(err) {
+			sm.status.LastError = "Authentication failure - check kubectl credentials"
+			sm.logger.Warn("Authentication error for service %s: %v", sm.name, err)
+			// Don't set individual service cooldown for auth errors - let global handler manage this
+		} else {
+			sm.status.LastError = err.Error()
+			sm.handleFailure() // Apply individual service cooldown for non-auth errors
+		}
+
 		return fmt.Errorf("failed to start port-forward for %s: %w", sm.name, err)
 	}
 
@@ -409,4 +419,19 @@ func (sm *ServiceManager) resetFailureCount() {
 		sm.failureCount = 0
 		sm.cooldownUntil = time.Time{}
 	}
+}
+
+// isAuthError detects authentication-related errors at the service level
+func (sm *ServiceManager) isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "unauthorized") ||
+		strings.Contains(errStr, "authentication") ||
+		strings.Contains(errStr, "token") ||
+		strings.Contains(errStr, "credential") ||
+		strings.Contains(errStr, "forbidden") ||
+		strings.Contains(errStr, "invalid user") ||
+		strings.Contains(errStr, "access denied")
 }

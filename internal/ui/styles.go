@@ -80,6 +80,10 @@ var (
 				Foreground(accentColor).
 				Bold(true)
 
+	statusSuspendedStyle = lipgloss.NewStyle().
+				Foreground(mutedColor).
+				Bold(true)
+
 	// Table styles
 	tableHeaderStyle = lipgloss.NewStyle().
 				Foreground(primaryColor).
@@ -133,15 +137,35 @@ func GetStatusStyle(status string) lipgloss.Style {
 		return statusConnectingStyle
 	case "Reconnecting":
 		return statusReconnectingStyle
+	case "Suspended":
+		return statusSuspendedStyle
 	default:
 		return statusStartingStyle
 	}
 }
 
-// GetStatusIndicator returns a colored status indicator
+// GetStatusIndicator returns a colored status indicator with appropriate symbol
 func GetStatusIndicator(status string) string {
 	style := GetStatusStyle(status)
-	return style.Render("●")
+
+	switch status {
+	case "Running":
+		return style.Render("●")
+	case "Failed":
+		return style.Render("✗")
+	case "Suspended":
+		return style.Render("⏸")
+	case "Connecting", "Reconnecting":
+		return style.Render("◐")
+	case "Starting":
+		return style.Render("◯")
+	case "Degraded":
+		return style.Render("⚠")
+	case "Cooldown":
+		return style.Render("◦")
+	default:
+		return style.Render("●")
+	}
 }
 
 // FormatURL formats a URL with styling

@@ -31,13 +31,14 @@ type UIConfig struct {
 // ServiceStatus represents the runtime status of a service
 type ServiceStatus struct {
 	Name          string
-	Status        string
-	LocalPort     int // Actual port being used (may differ from config if reassigned)
-	PID           int // Process ID of kubectl port-forward
+	Status        string // Possible values: "Starting", "Connecting", "Running", "Degraded", "Failed", "Suspended", "Reconnecting", "Stopped"
+	LocalPort     int    // Actual port being used (may differ from config if reassigned)
+	PID           int    // Process ID of kubectl port-forward
 	StartTime     time.Time
 	RestartCount  int
 	LastError     string
 	StatusMessage string // Transient status message (e.g., "Starting gRPC UI...")
 	InCooldown    bool
 	CooldownUntil time.Time
+	GlobalStatus  string `json:"globalStatus,omitempty"` // Global access status: "healthy", "auth_failure", "network_failure"
 }
