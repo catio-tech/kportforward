@@ -88,27 +88,7 @@ func KillProcess(pid int) error {
 }
 
 // KillProcessGroup terminates a process group to ensure all child processes are killed
-func KillProcessGroup(pid int) error {
-	if pid <= 0 {
-		return fmt.Errorf("invalid PID: %d", pid)
-	}
-
-	if runtime.GOOS == "windows" {
-		// On Windows, use taskkill with /T flag to terminate process tree
-		cmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(pid))
-		return cmd.Run()
-	}
-
-	// On Unix systems, kill the entire process group
-	// Negative PID means kill the process group
-	err := syscall.Kill(-pid, syscall.SIGTERM)
-	if err != nil {
-		// If SIGTERM fails, try SIGKILL
-		return syscall.Kill(-pid, syscall.SIGKILL)
-	}
-
-	return nil
-}
+// Platform-specific implementations are in processes_unix.go and processes_windows.go
 
 // StartKubectlPortForward is implemented in platform-specific files
 
