@@ -47,3 +47,14 @@ func StartKubectlPortForwardWithTimeout(namespace, target string, localPort, tar
 
 	return cmd, nil
 }
+
+// KillProcessGroup terminates a process group to ensure all child processes are killed on Windows
+func KillProcessGroup(pid int) error {
+	if pid <= 0 {
+		return fmt.Errorf("invalid PID: %d", pid)
+	}
+
+	// On Windows, use taskkill with /T flag to terminate process tree
+	cmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprintf("%d", pid))
+	return cmd.Run()
+}

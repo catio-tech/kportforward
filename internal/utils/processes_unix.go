@@ -51,3 +51,20 @@ func StartKubectlPortForwardWithTimeout(namespace, target string, localPort, tar
 
 	return cmd, nil
 }
+
+// KillProcessGroup terminates a process group to ensure all child processes are killed on Unix systems
+func KillProcessGroup(pid int) error {
+	if pid <= 0 {
+		return fmt.Errorf("invalid PID: %d", pid)
+	}
+
+	// On Unix systems, kill the entire process group
+	// Negative PID means kill the process group
+	err := syscall.Kill(-pid, syscall.SIGTERM)
+	if err != nil {
+		// If SIGTERM fails, try SIGKILL
+		return syscall.Kill(-pid, syscall.SIGKILL)
+	}
+
+	return nil
+}
