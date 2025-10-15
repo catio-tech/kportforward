@@ -18,9 +18,10 @@ LDFLAGS="-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE
 # Target platforms
 PLATFORMS=(
     "darwin/amd64"
-    "darwin/arm64" 
+    "darwin/arm64"
     "linux/amd64"
-    "windows/amd64"
+    # Disabled for now because the windows build is throwing errors
+    # "windows/amd64"
 )
 
 echo "Building ${BINARY_NAME} version ${VERSION}"
