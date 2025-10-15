@@ -2,20 +2,20 @@ class Kportforward < Formula
   desc "Modern Kubernetes port-forward manager with TUI"
   homepage "https://github.com/catio-tech/kportforward"
   license "MIT"
-  version "1.5.3"
+  version "1.5.5"
 
   # Use explicit file naming and SHA256 checksums
   if OS.mac?
     if Hardware::CPU.arm?
-      url "https://github.com/catio-tech/kportforward/releases/download/v1.5.3/kportforward-darwin-arm64"
-      sha256 "b127036c8578cbfe1917064d784f314fa553610157b221f8175fc9bb8166d3ff"
+      url "https://github.com/catio-tech/kportforward/releases/download/v1.5.5/kportforward-darwin-arm64"
+      sha256 "739be11b1b38e04d5ba53e0f6450eb411cde6ae2f30139a5b057fc537c2b929d"
     else
-      url "https://github.com/catio-tech/kportforward/releases/download/v1.5.3/kportforward-darwin-amd64"
-      sha256 "4f99e8c3621367d67cc9568e03165bfd6dad4d9c1a0a4621fac0011d934657cb"
+      url "https://github.com/catio-tech/kportforward/releases/download/v1.5.5/kportforward-darwin-amd64"
+      sha256 "a8d33ce29a3ce3d70bcabd85443521f497f7ce612994426b607bc62c020f934f"
     end
   elsif OS.linux? && Hardware::CPU.intel?
-    url "https://github.com/catio-tech/kportforward/releases/download/v1.5.3/kportforward-linux-amd64"
-    sha256 "71083df9017bc01ff2c9aede5f7c8d2196aa59c37f67bc85860e678ff249edb0"
+    url "https://github.com/catio-tech/kportforward/releases/download/v1.5.5/kportforward-linux-amd64"
+    sha256 "d513ceea5c18418cbefd15d2174dcb42a3f7d34c831a5fb4b56f181859b00212"
   end
 
   depends_on "kubectl" => :recommended
