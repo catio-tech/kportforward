@@ -47,7 +47,7 @@ jobs:
     needs: test
     strategy:
       matrix:
-        goos: [linux, windows, darwin]
+        goos: [linux, darwin]
         goarch: [amd64, arm64]
         exclude:
           # Windows on ARM64 not commonly used
