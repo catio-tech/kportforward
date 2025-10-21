@@ -149,6 +149,13 @@ portForwards:
     localPort: 50109
     namespace: "catio-data-extraction"
     type: "rpc"
+  # Splunk OTEL Collector
+  splunk-otel-collector:
+    target: "service/splunk-splunk-otel-collector"
+    targetPort: 4317
+    localPort: 4317
+    namespace: "splunk"
+    type: "other"
 
 monitoringInterval: 1s
 uiOptions:
