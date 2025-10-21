@@ -155,7 +155,7 @@ portForwards:
     targetPort: 4317
     localPort: 4317
     namespace: "splunk"
-    type: "other"
+    type: "rpc"
 
 monitoringInterval: 1s
 uiOptions:
