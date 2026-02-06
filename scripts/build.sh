@@ -21,7 +21,7 @@ PLATFORMS=(
     "darwin/arm64"
     "linux/amd64"
     # Disabled for now because the windows build is throwing errors
-    # "windows/amd64"
+    "windows/amd64"
 )
 
 echo "Building ${BINARY_NAME} version ${VERSION}"
