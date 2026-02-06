@@ -3,20 +3,22 @@
 package utils
 
 import (
-	"context"
+	//"context"
+	"bufio"
 	"fmt"
+	"io"
 	"os/exec"
 	"syscall"
 	"time"
 )
 
 // StartKubectlPortForward starts a kubectl port-forward process with Unix-specific settings
-func StartKubectlPortForward(namespace, target string, localPort, targetPort int) (*exec.Cmd, error) {
-	return StartKubectlPortForwardWithTimeout(namespace, target, localPort, targetPort, 30*time.Second)
+func StartKubectlPortForward(namespace, target string, localPort, targetPort int, logger *Logger, serviceName string) (*exec.Cmd, error) {
+	return StartKubectlPortForwardWithTimeout(namespace, target, localPort, targetPort, 30*time.Second, logger, serviceName)
 }
 
 // StartKubectlPortForwardWithTimeout starts a kubectl port-forward process with a timeout
-func StartKubectlPortForwardWithTimeout(namespace, target string, localPort, targetPort int, timeout time.Duration) (*exec.Cmd, error) {
+func StartKubectlPortForwardWithTimeout(namespace, target string, localPort, targetPort int, timeout time.Duration, logger *Logger, serviceName string) (*exec.Cmd, error) {
 	args := []string{
 		"port-forward",
 		"-n", namespace,
@@ -25,29 +27,49 @@ func StartKubectlPortForwardWithTimeout(namespace, target string, localPort, tar
 		"--request-timeout=" + fmt.Sprintf("%.0fs", timeout.Seconds()),
 	}
 
-	// Create context with timeout for command execution
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+5*time.Second)
+	cmd := exec.Command("kubectl", args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	cmd := exec.CommandContext(ctx, "kubectl", args...)
-
-	// Set up process group for proper cleanup on Unix systems
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kubectl stdout: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kubectl stderr: %w", err)
 	}
 
-	// Store the cancel function for later use if needed
-	// Note: This is a simplified approach - in production you might want to store this differently
-	go func() {
-		// Cancel context if the command takes too long to start
-		time.Sleep(timeout + 10*time.Second)
-		cancel()
-	}()
-
-	err := cmd.Start()
-	if err != nil {
-		cancel()
+	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start kubectl port-forward: %w", err)
 	}
 
+	go streamKubectlOutput(stdout, logger, serviceName, false)
+	go streamKubectlOutput(stderr, logger, serviceName, true)
+
+	go func() {
+		err := cmd.Wait()
+		if err != nil && logger != nil {
+			logger.Debug("kubectl port-forward exited for %s: %v", serviceName, err)
+		}
+	}()
+
 	return cmd, nil
+}
+
+func streamKubectlOutput(r io.Reader, logger *Logger, serviceName string, isErr bool) {
+	if logger == nil {
+		return
+	}
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if isErr {
+			logger.Warn("kubectl[%s] %s", serviceName, line)
+		} else {
+			logger.Debug("kubectl[%s] %s", serviceName, line)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		logger.Debug("kubectl[%s] output read error: %v", serviceName, err)
+	}
 }

@@ -166,6 +166,12 @@ func (ocl *OptimizedConfigLoader) mergeConfigsOptimized(defaultConfig, userConfi
 		merged.UIOptions.Theme = userConfig.UIOptions.Theme
 	}
 
+	for name, service := range merged.PortForwards {
+		if service.Disabled {
+			delete(merged.PortForwards, name)
+		}
+	}
+
 	return merged
 }
 

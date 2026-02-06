@@ -87,6 +87,8 @@ func (sm *ServiceManager) Start() error {
 		sm.config.Target,
 		actualPort,
 		sm.config.TargetPort,
+		sm.logger,
+		sm.name,
 	)
 	if err != nil {
 		sm.status.Status = "Failed"

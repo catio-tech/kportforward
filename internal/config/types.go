@@ -20,6 +20,7 @@ type Service struct {
 	Type        string `yaml:"type"`
 	SwaggerPath string `yaml:"swaggerPath,omitempty"`
 	APIPath     string `yaml:"apiPath,omitempty"`
+	Disabled    bool   `yaml:"disabled,omitempty"`
 }
 
 // UIConfig represents UI-specific configuration options
