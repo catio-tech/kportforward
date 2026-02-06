@@ -30,12 +30,12 @@ var (
 	date    = "unknown"
 
 	// CLI flags
-	enableGRPCUI    bool
-	enableSwaggerUI bool
-	logFile         string
-	pprofAddr       string
-	memStatsInterval time.Duration
-	heapSnapshotDir  string
+	enableGRPCUI         bool
+	enableSwaggerUI      bool
+	logFile              string
+	pprofAddr            string
+	memStatsInterval     time.Duration
+	heapSnapshotDir      string
 	heapSnapshotInterval time.Duration
 
 	// Global root command
