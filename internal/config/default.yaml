@@ -36,22 +36,6 @@ portForwards:
     type: "rest"
     swaggerPath: "configuration/swagger"
     apiPath: "api/requirements-section"
-  recommendations-document:
-    target: "service/recommendations-document"
-    targetPort: 80
-    localPort: 50807
-    namespace: "catio-data-extraction"
-    type: "rest"
-    swaggerPath: "configuration/swagger"
-    apiPath: "api/recommendations-document"
-  recommendations-section:
-    target: "service/recommendations-section"
-    targetPort: 80
-    localPort: 50808
-    namespace: "catio-data-extraction"
-    type: "rest"
-    swaggerPath: "configuration/swagger"
-    apiPath: "api/recommendations-section"
   recommendations-mgnt:
     target: "service/recommendations-mgnt"
     targetPort: 50051
@@ -88,19 +72,6 @@ portForwards:
     localPort: 50105
     namespace: "catio-data-extraction"
     type: "rpc"
-  # Eagle eye
-  eagle-eye:
-    target: "service/eagle-eye-streamlit-service"
-    targetPort: 80
-    localPort: 8020
-    namespace: "catio-data-extraction"
-    type: "web"
-  mas-chat:
-    target: "service/mas-chat-service"
-    targetPort: 5001
-    localPort: 50104
-    namespace: "catio-data-extraction"
-    type: "other"
   recommendations-dashboard:
     target: "service/recommendations-dashboard"
     targetPort: 80
@@ -147,6 +118,14 @@ portForwards:
     target: "service/requirements-service"
     targetPort: 80
     localPort: 50109
+    namespace: "catio-data-extraction"
+    type: "rpc"
+
+  # Question service
+  question-service:
+    target: "service/question-service"
+    targetPort: 80
+    localPort: 50110
     namespace: "catio-data-extraction"
     type: "rpc"
 

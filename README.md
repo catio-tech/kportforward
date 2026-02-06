@@ -192,6 +192,12 @@ go test -bench=. -benchmem ./...
 # Profile memory usage
 ./kportforward profile --memprofile=mem.prof --duration=30s
 
+# Live profiling with pprof
+./kportforward --pprof localhost:6060 --mem-stats-interval 5m
+
+# Automatic heap snapshots (opt-in)
+./kportforward --pprof localhost:6060 --heap-snapshot-dir ./pprof --heap-snapshot-interval 30m
+
 # Analyze profiles
 go tool pprof cpu.prof
 go tool pprof mem.prof

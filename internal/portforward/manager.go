@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -35,6 +36,7 @@ type Manager struct {
 	cancel            context.CancelFunc
 	mutex             sync.RWMutex
 	kubernetesContext string
+	shuttingDown      bool
 
 	// UI Handlers
 	grpcUIHandler    UIHandler
@@ -51,6 +53,28 @@ type Manager struct {
 	globalAccessFailCount int
 	globalAccessCooldown  time.Time
 	globalAccessMutex     sync.RWMutex
+}
+
+func (m *Manager) isShuttingDown() bool {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return m.shuttingDown
+}
+func applyKubeconfigEnv(cmd *exec.Cmd) {
+	// Respect existing KUBECONFIG if set
+	if os.Getenv("KUBECONFIG") != "" {
+		cmd.Env = os.Environ()
+		return
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil || homeDir == "" {
+		cmd.Env = os.Environ()
+		return
+	}
+
+	kubeconfig := filepath.Join(homeDir, ".kube", "config")
+	cmd.Env = append(os.Environ(), "KUBECONFIG="+kubeconfig)
 }
 
 // NewManager creates a new port-forward manager
@@ -174,6 +198,7 @@ func (m *Manager) Start() error {
 // Stop gracefully stops all services
 func (m *Manager) Stop() error {
 	m.mutex.Lock()
+	m.shuttingDown = true
 	defer m.mutex.Unlock()
 
 	// Stop monitoring
@@ -206,7 +231,7 @@ func (m *Manager) Stop() error {
 	}
 
 	m.cancel()
-	close(m.statusChan)
+	// close(m.statusChan)
 
 	m.logger.Info("Stopped all port-forward services")
 	return nil
@@ -275,6 +300,10 @@ func (m *Manager) startMonitoring() {
 
 // monitorServices checks the health of all services and restarts failed ones
 func (m *Manager) monitorServices() {
+
+	if m.isShuttingDown() {
+		return
+	}
 	// Check global access first - if this fails, suspend all services
 	if !m.checkAndUpdateGlobalAccess() {
 		m.logger.Warn("Global kubectl access failed, suspending all service operations")
@@ -321,6 +350,9 @@ func (m *Manager) monitorServices() {
 		if status.Status == "Failed" && !status.InCooldown {
 			m.logger.Info("Restarting failed service: %s", name)
 			go func(serviceName string, serviceManager *ServiceManager) {
+				if m.isShuttingDown() {
+					return
+				}
 				if err := serviceManager.Restart(); err != nil {
 					m.logger.Error("Failed to restart service %s: %v", serviceName, err)
 				}
@@ -547,7 +579,7 @@ func (m *Manager) getCurrentKubernetesContext() (string, error) {
 	cmd := exec.CommandContext(ctx, "kubectl", "config", "current-context")
 
 	// Add environment variables to ensure kubectl uses the right config
-	cmd.Env = append(os.Environ(), "KUBECONFIG="+os.ExpandEnv("$HOME/.kube/config"))
+	applyKubeconfigEnv(cmd)
 
 	// Capture both stdout and stderr
 	var stdout, stderr bytes.Buffer
@@ -606,14 +638,14 @@ func (m *Manager) UpdateServiceStatusMessage(serviceName, message string) {
 
 // checkGlobalAccess performs a lightweight kubectl connectivity test
 func (m *Manager) checkGlobalAccess() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	// Test basic kubectl connectivity using a lightweight command
-	cmd := exec.CommandContext(ctx, "kubectl", "get", "nodes", "--request-timeout=5s")
+	cmd := exec.CommandContext(ctx, "kubectl", "get", "nodes", "--request-timeout=15s")
 
 	// Add environment variables to ensure kubectl uses the right config
-	cmd.Env = append(os.Environ(), "KUBECONFIG="+os.ExpandEnv("$HOME/.kube/config"))
+	applyKubeconfigEnv(cmd)
 
 	// Capture both stdout and stderr
 	var stderr bytes.Buffer
@@ -828,6 +860,10 @@ func (m *Manager) resumeServicesIfNeeded() bool {
 
 			// Restart service in a goroutine to avoid blocking
 			go func(serviceName string, serviceManager *ServiceManager) {
+				if m.isShuttingDown() {
+					return
+				}
+
 				if err := serviceManager.Restart(); err != nil {
 					m.logger.Error("Failed to resume service %s: %v", serviceName, err)
 				} else {
