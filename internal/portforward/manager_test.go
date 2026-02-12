@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"io"
+
 	"github.com/victorkazakov/kportforward/internal/common"
 	"github.com/victorkazakov/kportforward/internal/config"
 	"github.com/victorkazakov/kportforward/internal/utils"
@@ -248,5 +250,35 @@ func TestManagerValidation(t *testing.T) {
 	manager = NewManager(cfg, nil)
 	if manager == nil {
 		t.Error("NewManager should not return nil even with nil logger")
+	}
+}
+func TestRestartDeduplication(t *testing.T) {
+	logger := utils.NewLoggerWithOutput(utils.LevelInfo, io.Discard)
+	service := config.Service{
+		Target:     "service/test",
+		TargetPort: 8080,
+		LocalPort:  19999,
+		Namespace:  "default",
+		Type:       "web",
+	}
+
+	sm := NewServiceManager("dedup-test", service, logger)
+
+	// Simulate an in-progress restart
+	sm.restarting.Store(true)
+
+	// Restart should be a no-op
+	err := sm.Restart()
+	if err != nil {
+		t.Errorf("Expected nil error for deduplicated restart, got: %v", err)
+	}
+
+	// Verify restart count didn't increase (restart was skipped)
+	sm.mutex.RLock()
+	count := sm.status.RestartCount
+	sm.mutex.RUnlock()
+
+	if count != 0 {
+		t.Errorf("Expected restart count 0 (restart was skipped), got %d", count)
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"sync/atomic"
+
 	"github.com/victorkazakov/kportforward/internal/config"
 	"github.com/victorkazakov/kportforward/internal/utils"
 )
@@ -33,6 +35,8 @@ type ServiceManager struct {
 	consecutiveFailures int
 	maxFailureThreshold int
 	lastHealthCheckTime time.Time
+	// Restart deduplication
+	restarting atomic.Bool
 }
 
 // NewServiceManager creates a new service manager
@@ -80,6 +84,14 @@ func (sm *ServiceManager) Start() error {
 		return fmt.Errorf("port resolution failed for %s: %w", sm.name, err)
 	}
 	sm.status.LocalPort = actualPort
+
+	// Kill any orphaned process still holding the port (e.g. zombie kubectl from a previous session)
+	if !utils.IsPortAvailable(actualPort) {
+		sm.logger.Warn("Port %d is already in use for %s — killing the occupying process", actualPort, sm.name)
+		if err := utils.KillProcessOnPort(actualPort); err != nil {
+			sm.logger.Warn("Failed to kill process on port %d: %v", actualPort, err)
+		}
+	}
 
 	// Start kubectl port-forward
 	cmd, err := utils.StartKubectlPortForward(
@@ -140,6 +152,11 @@ func (sm *ServiceManager) Stop() error {
 		sm.cmd = nil
 	}
 
+	// Release reassigned port so others can use it
+	if sm.status.LocalPort != sm.config.LocalPort {
+		utils.ReleasePort(sm.status.LocalPort)
+	}
+
 	sm.status.Status = "Stopped"
 	sm.status.PID = 0
 	sm.logger.Info("Stopped port-forward for %s", sm.name)
@@ -149,11 +166,22 @@ func (sm *ServiceManager) Stop() error {
 
 // Restart stops and starts the service
 func (sm *ServiceManager) Restart() error {
+
+	// Prevent concurrent restarts of the same service
+	if !sm.restarting.CompareAndSwap(false, true) {
+		sm.logger.Debug("Restart already in progress for %s, skipping", sm.name)
+		return nil
+	}
+	defer sm.restarting.Store(false)
+
 	sm.logger.Info("Restarting service %s", sm.name)
 
 	if err := sm.Stop(); err != nil {
 		sm.logger.Warn("Error stopping service %s during restart: %v", sm.name, err)
 	}
+
+	// Wait for the OS to release the port (Windows TCP TIME_WAIT)
+	time.Sleep(1 * time.Second)
 
 	sm.mutex.Lock()
 	sm.status.RestartCount++
@@ -205,7 +233,7 @@ func (sm *ServiceManager) GetStatus() config.ServiceStatus {
 			// Check port connectivity - with retries built in
 			isPortConnected := false
 			if isProcessRunning {
-				isPortConnected = utils.CheckPortConnectivity(sm.status.LocalPort)
+				isPortConnected = utils.CheckPortConnectivityQuick(sm.status.LocalPort)
 				if !isPortConnected {
 					sm.logger.Debug("Port connectivity check failed for %s on port %d", sm.name, sm.status.LocalPort)
 				}
@@ -376,7 +404,7 @@ func (sm *ServiceManager) resolvePort() (int, error) {
 	}
 
 	// Port is in use, find an alternative
-	newPort, err := utils.FindAvailablePort(sm.config.LocalPort + 1)
+	newPort, err := utils.FindAvailablePortSafe(sm.config.LocalPort + 1)
 	if err != nil {
 		return 0, err
 	}

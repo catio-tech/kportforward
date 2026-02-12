@@ -143,3 +143,64 @@ func validateService(service Service) bool {
 	}
 	return true
 }
+func TestDisabledServiceDeletion(t *testing.T) {
+	defaultCfg := &Config{
+		PortForwards: map[string]Service{
+			"svc-a": {Target: "service/a", TargetPort: 80, LocalPort: 8080, Namespace: "ns"},
+			"svc-b": {Target: "service/b", TargetPort: 80, LocalPort: 8081, Namespace: "ns"},
+		},
+		MonitoringInterval: 5_000_000_000,
+	}
+
+	userCfg := &Config{
+		PortForwards: map[string]Service{
+			"svc-b": {Target: "service/b", TargetPort: 80, LocalPort: 8081, Namespace: "ns", Disabled: true},
+			"svc-c": {Target: "service/c", TargetPort: 80, LocalPort: 8082, Namespace: "ns"},
+		},
+	}
+
+	merged := mergeConfigs(defaultCfg, userCfg)
+
+	if _, ok := merged.PortForwards["svc-a"]; !ok {
+		t.Error("svc-a should be present (not disabled)")
+	}
+	if _, ok := merged.PortForwards["svc-b"]; ok {
+		t.Error("svc-b should be deleted (disabled=true)")
+	}
+	if _, ok := merged.PortForwards["svc-c"]; !ok {
+		t.Error("svc-c should be present (new user service)")
+	}
+	if len(merged.PortForwards) != 2 {
+		t.Errorf("expected 2 services after merge, got %d", len(merged.PortForwards))
+	}
+}
+
+func TestDisabledServiceDeletionOptimized(t *testing.T) {
+	loader := NewOptimizedConfigLoader()
+
+	defaultCfg := &Config{
+		PortForwards: map[string]Service{
+			"svc-a": {Target: "service/a", TargetPort: 80, LocalPort: 8080, Namespace: "ns"},
+			"svc-b": {Target: "service/b", TargetPort: 80, LocalPort: 8081, Namespace: "ns"},
+		},
+		MonitoringInterval: 5_000_000_000,
+	}
+
+	userCfg := &Config{
+		PortForwards: map[string]Service{
+			"svc-b": {Disabled: true},
+		},
+	}
+
+	merged := loader.mergeConfigsOptimized(defaultCfg, userCfg)
+
+	if _, ok := merged.PortForwards["svc-a"]; !ok {
+		t.Error("svc-a should be present")
+	}
+	if _, ok := merged.PortForwards["svc-b"]; ok {
+		t.Error("svc-b should be deleted (disabled=true)")
+	}
+	if len(merged.PortForwards) != 1 {
+		t.Errorf("expected 1 service after merge, got %d", len(merged.PortForwards))
+	}
+}

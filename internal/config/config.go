@@ -11,10 +11,15 @@ import (
 
 // LoadConfig loads and merges configuration from embedded defaults and user config
 func LoadConfig() (*Config, error) {
-	// Start with embedded default config
+	// Load default config: try remote → cached → embedded fallback
+	defaultYAML, err := loadDefaultsWithRemote()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load default config: %w", err)
+	}
+
 	config := &Config{}
-	if err := yaml.Unmarshal(DefaultConfigYAML, config); err != nil {
-		return nil, fmt.Errorf("failed to parse embedded config: %w", err)
+	if err := yaml.Unmarshal(defaultYAML, config); err != nil {
+		return nil, fmt.Errorf("failed to parse default config: %w", err)
 	}
 
 	// Try to load user config and merge if it exists

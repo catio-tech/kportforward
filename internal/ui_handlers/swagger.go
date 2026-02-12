@@ -2,6 +2,7 @@ package ui_handlers
 
 import (
 	"fmt"
+	"net"
 	"os/exec"
 	"strings"
 	"sync"
@@ -128,6 +129,7 @@ func (sm *SwaggerUIManager) StartService(serviceName string, serviceStatus confi
 
 	// Verify the port-forward is actually working before starting Swagger UI
 	if !sm.isPortReachable(serviceStatus.LocalPort) {
+		utils.ReleasePort(swaggerPort) // Release allocated port since we're not using it yet
 		sm.logger.Info("Port-forward not ready for %s, Swagger UI not started", serviceName)
 		if sm.statusCallback != nil {
 			sm.statusCallback.UpdateServiceStatusMessage(serviceName, "")
@@ -139,6 +141,7 @@ func (sm *SwaggerUIManager) StartService(serviceName string, serviceStatus confi
 	sm.logger.Info("Starting Swagger UI for %s: connecting to localhost:%d, serving on port %d", serviceName, serviceStatus.LocalPort, swaggerPort)
 	containerID, containerName, err := sm.startSwaggerContainer(serviceName, serviceStatus.LocalPort, swaggerPort, swaggerPath, apiPath)
 	if err != nil {
+		utils.ReleasePort(swaggerPort) // Release allocated port on failure
 		sm.logger.Error("Failed to start Swagger UI container for %s: %v", serviceName, err)
 		return fmt.Errorf("failed to start Swagger UI container: %w", err)
 	}
@@ -211,10 +214,11 @@ func (sm *SwaggerUIManager) stopService(serviceName string) error {
 	return nil
 }
 
-// GetServiceInfo returns information about a Swagger UI service
+// GetServiceInfo returns information about a Swagger UI service.
+// Returns a snapshot copy so callers cannot mutate internal state.
 func (sm *SwaggerUIManager) GetServiceInfo(serviceName string) *SwaggerUIService {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
 
 	service, exists := sm.services[serviceName]
 	if !exists {
@@ -228,7 +232,9 @@ func (sm *SwaggerUIManager) GetServiceInfo(serviceName string) *SwaggerUIService
 		}
 	}
 
-	return service
+	// Return a copy to prevent external mutation
+	copy := *service
+	return &copy
 }
 
 // GetServiceURL returns the URL for accessing the Swagger UI
@@ -331,11 +337,14 @@ func (sm *SwaggerUIManager) stopContainerByPort(port int) error {
 	return nil
 }
 
-// isPortReachable checks if a port is reachable (like nc -z in bash)
+// isPortReachable checks if a port is reachable using a TCP dial (cross-platform)
 func (sm *SwaggerUIManager) isPortReachable(port int) bool {
-	cmd := exec.Command("nc", "-z", "localhost", fmt.Sprintf("%d", port))
-	err := cmd.Run()
-	return err == nil
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), 2*time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }
 
 // isContainerRunning checks if a Docker container is running
@@ -368,7 +377,18 @@ func (sm *SwaggerUIManager) MonitorServices(services map[string]config.ServiceSt
 				sm.logger.Info("Found REST service %s with status: %s", serviceName, serviceStatus.Status)
 				if serviceStatus.Status == "Running" {
 					runningRestServices++
-					if _, uiExists := sm.services[serviceName]; !uiExists {
+					existing, uiExists := sm.services[serviceName]
+					needsStart := !uiExists
+
+					// Also restart if the existing Swagger UI container has failed
+					if uiExists && existing.status == "Failed" {
+						sm.logger.Info("Swagger UI for %s is in Failed state, cleaning up for restart", serviceName)
+						utils.ReleasePort(existing.swaggerPort)
+						delete(sm.services, serviceName)
+						needsStart = true
+					}
+
+					if needsStart {
 						sm.logger.Info("Starting Swagger UI for REST service: %s", serviceName)
 						go func(name string, status config.ServiceStatus, config config.Service) {
 							if err := sm.StartService(name, status, config); err != nil {

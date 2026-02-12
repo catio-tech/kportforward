@@ -20,7 +20,6 @@ PLATFORMS=(
     "darwin/amd64"
     "darwin/arm64"
     "linux/amd64"
-    # Disabled for now because the windows build is throwing errors
     "windows/amd64"
 )
 

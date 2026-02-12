@@ -3,13 +3,13 @@
 package utils
 
 import (
-	//"context"
 	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -133,6 +133,63 @@ func GetProcessInfo(pid int) (*ProcessInfo, error) {
 		Command: "kubectl",
 		Args:    []string{"port-forward"},
 	}, nil
+}
+
+// KillProcessOnPort finds and kills any process listening on the given TCP port.
+// This is used to clean up zombie kubectl processes that survived a previous shutdown.
+func KillProcessOnPort(port int) error {
+	// Use netstat to find the PID holding the port
+	cmd := exec.Command("cmd", "/C", fmt.Sprintf("netstat -ano | findstr \"LISTENING\" | findstr \":%d \"", port))
+	output, err := cmd.Output()
+	if err != nil || len(output) == 0 {
+		return nil // No process found on this port — nothing to kill
+	}
+
+	// Parse PIDs from netstat output (may have multiple lines for IPv4/IPv6)
+	killed := make(map[int]bool)
+	lines := splitLines(string(output))
+	for _, line := range lines {
+		fields := splitFields(line)
+		if len(fields) < 5 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[len(fields)-1])
+		if err != nil || pid <= 0 || killed[pid] {
+			continue
+		}
+		killed[pid] = true
+		_ = runTaskkill("/F", "/PID", strconv.Itoa(pid))
+	}
+
+	if len(killed) > 0 {
+		// Brief wait for OS to release the port
+		time.Sleep(500 * time.Millisecond)
+	}
+	return nil
+}
+
+// splitLines splits a string into non-empty lines
+func splitLines(s string) []string {
+	var lines []string
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
+// splitFields splits a line into whitespace-separated fields
+func splitFields(s string) []string {
+	var fields []string
+	for _, f := range strings.Split(s, " ") {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			fields = append(fields, f)
+		}
+	}
+	return fields
 }
 
 func streamKubectlOutput(r io.Reader, logger *Logger, serviceName string, isErr bool) {

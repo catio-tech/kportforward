@@ -82,8 +82,14 @@ func (ocl *OptimizedConfigLoader) LoadConfigOptimized() (*Config, error) {
 func (ocl *OptimizedConfigLoader) getDefaultConfigOptimized() (*Config, error) {
 	var err error
 	ocl.parseOnce.Do(func() {
+		// Load defaults: try remote → cached → embedded fallback
+		defaultYAML, loadErr := loadDefaultsWithRemote()
+		if loadErr != nil {
+			err = loadErr
+			return
+		}
 		ocl.parsedDefault = &Config{}
-		err = yaml.Unmarshal(DefaultConfigYAML, ocl.parsedDefault)
+		err = yaml.Unmarshal(defaultYAML, ocl.parsedDefault)
 	})
 
 	if err != nil {

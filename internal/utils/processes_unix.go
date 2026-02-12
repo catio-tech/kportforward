@@ -3,11 +3,12 @@
 package utils
 
 import (
-	//"context"
 	"bufio"
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -54,6 +55,32 @@ func StartKubectlPortForwardWithTimeout(namespace, target string, localPort, tar
 	}()
 
 	return cmd, nil
+}
+
+// KillProcessOnPort finds and kills any process listening on the given TCP port.
+// This is used to clean up zombie kubectl processes that survived a previous shutdown.
+func KillProcessOnPort(port int) error {
+	// Try lsof first (available on macOS and most Linux distros)
+	cmd := exec.Command("lsof", "-ti", fmt.Sprintf("tcp:%d", port))
+	output, err := cmd.Output()
+	if err != nil || len(output) == 0 {
+		return nil // No process found — nothing to kill
+	}
+
+	killed := false
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		pid, err := strconv.Atoi(strings.TrimSpace(line))
+		if err != nil || pid <= 0 {
+			continue
+		}
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+		killed = true
+	}
+
+	if killed {
+		time.Sleep(500 * time.Millisecond)
+	}
+	return nil
 }
 
 func streamKubectlOutput(r io.Reader, logger *Logger, serviceName string, isErr bool) {
