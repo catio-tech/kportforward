@@ -267,6 +267,13 @@ func (gm *GRPCUIManager) startGRPCUIProcess(serviceName string, targetPort, grpc
 		return nil, err
 	}
 
+	// Reap the process when it exits to prevent zombie processes.
+	// cmd.Wait() releases the OS process table entry once the process dies.
+	go func() {
+		cmd.Wait()
+		logFileHandle.Close()
+	}()
+
 	return cmd, nil
 }
 
