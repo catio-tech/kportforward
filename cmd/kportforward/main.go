@@ -33,6 +33,7 @@ var (
 	enableGRPCUI         bool
 	enableSwaggerUI      bool
 	logFile              string
+	configURL            string
 	pprofAddr            string
 	memStatsInterval     time.Duration
 	heapSnapshotDir      string
@@ -70,6 +71,7 @@ func main() {
 	rootCmd.Flags().BoolVar(&enableGRPCUI, "grpcui", false, "Enable gRPC UI for RPC services")
 	rootCmd.Flags().BoolVar(&enableSwaggerUI, "swaggerui", false, "Enable Swagger UI for REST services")
 	rootCmd.Flags().StringVar(&logFile, "log-file", "", "Write logs to file (default: logs are discarded to avoid interfering with TUI)")
+	rootCmd.Flags().StringVar(&configURL, "config-url", config.DefaultRemoteConfigURL, "URL to fetch default config from (set to \"\" to use embedded defaults only)")
 	rootCmd.Flags().StringVar(&pprofAddr, "pprof", "", "Start pprof HTTP server (e.g. localhost:6060)")
 	rootCmd.Flags().DurationVar(&memStatsInterval, "mem-stats-interval", 0, "Log memory stats every interval (0 to disable)")
 	rootCmd.Flags().StringVar(&heapSnapshotDir, "heap-snapshot-dir", "", "Directory to write periodic heap snapshots")
@@ -109,6 +111,9 @@ func initializeLogger(logFile string) (*utils.Logger, error) {
 }
 
 func runPortForward(cmd *cobra.Command, args []string) {
+	// Set remote config URL (may be overridden by --config-url flag)
+	config.SetRemoteConfigURL(configURL)
+
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {

@@ -9,12 +9,22 @@ import (
 
 // IsPortAvailable checks if a port is available for binding
 func IsPortAvailable(port int) bool {
-	address := fmt.Sprintf(":%d", port)
-	listener, err := net.Listen("tcp", address)
+	// Check IPv4 loopback — this is what kubectl binds to
+	addr4 := fmt.Sprintf("127.0.0.1:%d", port)
+	ln4, err := net.Listen("tcp4", addr4)
 	if err != nil {
 		return false
 	}
-	defer listener.Close()
+	ln4.Close()
+
+	// Check IPv6 loopback — kubectl also binds this
+	addr6 := fmt.Sprintf("[::1]:%d", port)
+	ln6, err := net.Listen("tcp6", addr6)
+	if err != nil {
+		return false
+	}
+	ln6.Close()
+
 	return true
 }
 
@@ -34,6 +44,17 @@ func CheckPortConnectivity(port int) bool {
 	// Use 3 retry attempts with 750ms delay and 2s timeout
 	// This gives services more time to respond and handles more transient issues
 	return CheckPortConnectivityWithRetries(port, 3, 750*time.Millisecond, 2*time.Second)
+}
+
+// faster
+func CheckPortConnectivityQuick(port int) bool {
+	address := fmt.Sprintf("localhost:%d", port)
+	conn, err := net.DialTimeout("tcp", address, 1*time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }
 
 // CheckPortConnectivityWithRetries tests port connectivity with configurable retries

@@ -18,14 +18,14 @@ func TestIsPortAvailable(t *testing.T) {
 		t.Errorf("Port %d should be available", port)
 	}
 
-	// Start a listener on the port
-	listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+	// Start a listener on 127.0.0.1 (matching kubectl's bind behavior)
+	listener, err := net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(port))
 	if err != nil {
 		t.Fatalf("Failed to start listener: %v", err)
 	}
 	defer listener.Close()
 
-	// Now the port should not be available
+	// Now the port should not be available (127.0.0.1 is occupied)
 	if IsPortAvailable(port) {
 		t.Errorf("Port %d should not be available", port)
 	}
@@ -55,10 +55,10 @@ func TestFindAvailablePortWithOccupiedPorts(t *testing.T) {
 		t.Fatalf("Failed to find base port: %v", err)
 	}
 
-	// Occupy several consecutive ports
+	// Occupy several consecutive ports on 127.0.0.1 (matching kubectl's bind behavior)
 	var listeners []net.Listener
 	for i := 0; i < 3; i++ {
-		listener, err := net.Listen("tcp", ":"+strconv.Itoa(basePort+i))
+		listener, err := net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(basePort+i))
 		if err != nil {
 			t.Fatalf("Failed to occupy port %d: %v", basePort+i, err)
 		}

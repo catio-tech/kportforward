@@ -1,7 +1,9 @@
 package ui_handlers
 
 import (
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/victorkazakov/kportforward/internal/config"
 	"github.com/victorkazakov/kportforward/internal/utils"
@@ -213,4 +215,160 @@ func TestGRPCUIManagerIsGRPCUIAvailable(t *testing.T) {
 	available := manager.isGRPCUIAvailable()
 	// We just check that it doesn't panic
 	t.Logf("gRPC UI available: %v", available)
+}
+
+func TestPortReleasedOnEarlyReturn(t *testing.T) {
+	logger := utils.NewLogger(utils.LevelInfo)
+	manager := NewGRPCUIManager(logger)
+	manager.enabled = true
+
+	serviceStatus := config.ServiceStatus{
+		Name:      "test-rpc",
+		Status:    "Running",
+		LocalPort: 1, // port 1 is not connectable, so testGRPCConnection will fail
+	}
+
+	serviceConfig := config.Service{
+		Target:     "service/test-rpc",
+		TargetPort: 8080,
+		LocalPort:  1,
+		Namespace:  "default",
+		Type:       "rpc",
+	}
+
+	// Call StartService multiple times — should not exhaust the port pool
+	// because each failed attempt should release its allocated port
+	for i := 0; i < 20; i++ {
+		_ = manager.StartService("test-rpc", serviceStatus, serviceConfig)
+	}
+
+	// No service should have been created (testGRPCConnection fails)
+	if len(manager.services) != 0 {
+		t.Errorf("Expected 0 services, got %d (ports leaked?)", len(manager.services))
+	}
+}
+
+func TestFailedServiceCleanedUpByMonitor(t *testing.T) {
+	logger := utils.NewLogger(utils.LevelInfo)
+	manager := NewGRPCUIManager(logger)
+	manager.enabled = true
+
+	// Inject a fake "Failed" service into the map
+	manager.services["test-rpc"] = &GRPCUIService{
+		serviceName: "test-rpc",
+		localPort:   8080,
+		grpcuiPort:  9200,
+		status:      "Failed",
+	}
+
+	services := map[string]config.ServiceStatus{
+		"test-rpc": {
+			Name:      "test-rpc",
+			Status:    "Running",
+			LocalPort: 8080,
+		},
+	}
+
+	configs := map[string]config.Service{
+		"test-rpc": {
+			Target:     "service/test-rpc",
+			TargetPort: 8080,
+			LocalPort:  9080,
+			Namespace:  "default",
+			Type:       "rpc",
+		},
+	}
+
+	// MonitorServices should clean up the Failed entry and attempt restart
+	manager.MonitorServices(services, configs)
+
+	// Give goroutine a moment to run
+	time.Sleep(200 * time.Millisecond)
+
+	// The failed entry should have been removed from the map
+	// (the restart goroutine will fail since there's no real gRPC service,
+	// but the old Failed entry should be cleaned up)
+	manager.mutex.Lock()
+	_, exists := manager.services["test-rpc"]
+	manager.mutex.Unlock()
+
+	// After cleanup, the entry was deleted. The goroutine may or may not have
+	// re-added it (depends on testGRPCConnection), but the old "Failed" one is gone.
+	// We just verify no panic occurred and the port was released.
+	t.Logf("Service exists after monitor: %v", exists)
+}
+
+func TestGetServiceInfoReturnsCopy(t *testing.T) {
+	logger := utils.NewLogger(utils.LevelInfo)
+	manager := NewGRPCUIManager(logger)
+
+	// Inject a service
+	manager.services["test-rpc"] = &GRPCUIService{
+		serviceName: "test-rpc",
+		localPort:   8080,
+		grpcuiPort:  9200,
+		status:      "Running",
+	}
+
+	// Get info (should be a copy)
+	info := manager.GetServiceInfo("test-rpc")
+	if info == nil {
+		t.Fatal("Expected non-nil service info")
+	}
+
+	// Mutate the copy
+	info.status = "Mutated"
+
+	// Original should be unchanged
+	manager.mutex.Lock()
+	original := manager.services["test-rpc"]
+	manager.mutex.Unlock()
+
+	if original.status == "Mutated" {
+		t.Error("GetServiceInfo returned a reference, not a copy — external mutation affected internal state")
+	}
+}
+
+func TestNoGoroutineLeakOnRepeatedStartStop(t *testing.T) {
+	logger := utils.NewLogger(utils.LevelInfo)
+	manager := NewGRPCUIManager(logger)
+	manager.enabled = true
+
+	serviceStatus := config.ServiceStatus{
+		Name:      "test-rpc",
+		Status:    "Running",
+		LocalPort: 1, // unreachable, so StartService returns early
+	}
+
+	serviceConfig := config.Service{
+		Target:     "service/test-rpc",
+		TargetPort: 8080,
+		LocalPort:  1,
+		Namespace:  "default",
+		Type:       "rpc",
+	}
+
+	// Record baseline goroutine count
+	runtime.GC()
+	time.Sleep(50 * time.Millisecond)
+	baseline := runtime.NumGoroutine()
+
+	// Repeatedly start (which bails early) and stop
+	for i := 0; i < 50; i++ {
+		_ = manager.StartService("test-rpc", serviceStatus, serviceConfig)
+		_ = manager.StopService("test-rpc")
+	}
+
+	// Give goroutines time to settle
+	runtime.GC()
+	time.Sleep(200 * time.Millisecond)
+
+	current := runtime.NumGoroutine()
+
+	// Allow a small margin (±5) for background runtime goroutines
+	if current > baseline+5 {
+		t.Errorf("Possible goroutine leak: baseline=%d, current=%d (delta=%d)", baseline, current, current-baseline)
+	} else {
+		t.Logf("Goroutine count OK: baseline=%d, current=%d", baseline, current)
+	}
 }

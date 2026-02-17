@@ -107,6 +107,7 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 
 	// Check if the gRPC service is accessible before starting UI
 	if !gm.testGRPCConnection(serviceStatus.LocalPort) {
+		utils.ReleasePort(grpcuiPort) // Release allocated port since we're not using it yet
 		gm.logger.Debug("gRPC service for %s not yet accessible on port %d, will retry later", serviceName, serviceStatus.LocalPort)
 		return nil // Skip for now, MonitorServices will retry
 	}
@@ -120,6 +121,7 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 	gm.logger.Debug("Starting gRPC UI for %s: connecting to localhost:%d, serving on port %d", serviceName, serviceStatus.LocalPort, grpcuiPort)
 	cmd, err := gm.startGRPCUIProcess(serviceName, serviceStatus.LocalPort, grpcuiPort, logFile)
 	if err != nil {
+		utils.ReleasePort(grpcuiPort) // Release allocated port on failure
 		gm.logger.Error("Failed to start grpcui process for %s: %v", serviceName, err)
 		return fmt.Errorf("failed to start grpcui process: %w", err)
 	}
@@ -189,10 +191,11 @@ func (gm *GRPCUIManager) stopService(serviceName string) error {
 	return nil
 }
 
-// GetServiceInfo returns information about a gRPC UI service
+// GetServiceInfo returns information about a gRPC UI service.
+// Returns a snapshot copy so callers cannot mutate internal state.
 func (gm *GRPCUIManager) GetServiceInfo(serviceName string) *GRPCUIService {
-	gm.mutex.RLock()
-	defer gm.mutex.RUnlock()
+	gm.mutex.Lock()
+	defer gm.mutex.Unlock()
 
 	service, exists := gm.services[serviceName]
 	if !exists {
@@ -206,7 +209,9 @@ func (gm *GRPCUIManager) GetServiceInfo(serviceName string) *GRPCUIService {
 		}
 	}
 
-	return service
+	// Return a copy to prevent external mutation
+	copy := *service
+	return &copy
 }
 
 // GetServiceURL returns the URL for accessing the gRPC UI
@@ -303,11 +308,23 @@ func (gm *GRPCUIManager) MonitorServices(services map[string]config.ServiceStatu
 	gm.mutex.Lock()
 	defer gm.mutex.Unlock()
 
-	// Start gRPC UI for new RPC services
+	// Start gRPC UI for new RPC services, and restart failed ones
 	for serviceName, serviceStatus := range services {
 		if serviceConfig, exists := configs[serviceName]; exists {
 			if serviceConfig.Type == "rpc" && serviceStatus.Status == "Running" {
-				if _, uiExists := gm.services[serviceName]; !uiExists {
+				existing, uiExists := gm.services[serviceName]
+				needsStart := !uiExists
+
+				// Also restart if the existing grpcui process has failed
+				if uiExists && existing.status == "Failed" {
+					gm.logger.Info("gRPC UI for %s is in Failed state, cleaning up for restart", serviceName)
+					// Clean up the failed entry (release port, remove from map)
+					utils.ReleasePort(existing.grpcuiPort)
+					delete(gm.services, serviceName)
+					needsStart = true
+				}
+
+				if needsStart {
 					go func(name string, status config.ServiceStatus, config config.Service) {
 						if err := gm.StartService(name, status, config); err != nil {
 							gm.logger.Error("Failed to start gRPC UI for %s: %v", name, err)
