@@ -41,6 +41,12 @@ go tool pprof mem.prof
 
 # Create a release
 ./scripts/release.sh v1.0.0
+
+# Data collector commands
+./bin/kportforward collect --once                              # Run collector once
+./bin/kportforward collect --once --format json                # JSON output (default)
+./bin/kportforward collect --once --output-file metrics.log    # Output to file
+./bin/kportforward collect --once --tenant-id org_abc123       # Specific tenant
 ```
 
 ## Key Components
@@ -48,12 +54,21 @@ go tool pprof mem.prof
 ### Go Package Structure
 - `cmd/kportforward/main.go`: Main application entry point with CLI setup
 - `cmd/kportforward/profile.go`: Performance profiling command with CPU/memory analysis
+- `cmd/kportforward/collect.go`: Data collector command for usage metrics
 - `internal/config/`: Configuration system with embedded defaults and user merging
   - `config.go`: Configuration loading and merging logic
   - `config_optimized.go`: High-performance configuration loading with caching
   - `config_bench_test.go`: Performance benchmarks for configuration operations
   - `embedded.go`: Embedded default configuration using `//go:embed`
-  - `types.go`: Configuration data structures
+  - `types.go`: Configuration data structures including collector config
+- `internal/collector/`: Data collector for CATIO usage metrics
+  - `collector.go`: Main orchestration logic for metric collection
+  - `clients.go`: HTTP and gRPC client implementations for services
+  - `aggregator.go`: Metric aggregation logic
+  - `emitter.go`: Structured JSON log emission
+  - `state.go`: Idempotency state management
+  - `types.go`: Data structures and schemas for collection events
+  - `collector_test.go`: Unit tests for collector components
 - `internal/portforward/`: Port-forward management and monitoring
   - `manager.go`: Service manager with UI handler integration
   - `manager_bench_test.go`: Performance benchmarks for manager operations
@@ -68,6 +83,7 @@ go tool pprof mem.prof
   - Platform-specific implementations (`*_unix.go`, `*_windows.go`)
 - `internal/updater/`: Auto-update system with GitHub releases integration
 - `internal/utils/`: Cross-platform utilities for ports, processes, and logging
+  - `logging.go`: Logger with JSON structured output support
   - `ports_optimized.go`: High-performance port management with caching and pooling
   - `ports_bench_test.go`: Performance benchmarks for port operations
 - `internal/common/`: Shared interfaces and types
@@ -485,3 +501,240 @@ curl -I http://localhost:<swagger-port>
 - **Follow Interfaces**: Use `UIHandler` pattern for new UI integrations
 - **Cross-Platform**: Test on different operating systems when possible
 - **Error Handling**: Always handle errors gracefully with proper logging
+## Data Collector
+
+The data collector is a new feature that aggregates usage metrics from internal CATIO services and emits structured JSON logs for Splunk ingestion. This enables tracking of tenant/workspace usage patterns, component growth, and system utilization.
+
+### Overview
+
+The collector runs as a separate command (`kportforward collect`) and queries internal services via their port-forwards to gather metrics:
+
+- **Component counts** from architecture-inventory service
+- **Relationship counts** from architecture-inventory service
+- **Recommendation counts** from recommendations-mgnt service
+- **Requirements counts** from requirements-service service
+- **Workspace discovery** from environment service
+
+### Architecture
+
+```
+┌─────────────────┐
+│  kportforward   │
+│    collect      │
+└────────┬────────┘
+         │
+    ┌────▼────┐
+    │ Clients │ (HTTP & gRPC)
+    └────┬────┘
+         │
+    ┌────▼──────────┐
+    │  Aggregator   │
+    └────┬──────────┘
+         │
+    ┌────▼────────┐
+    │   Emitter   │ (JSON logs)
+    └────┬────────┘
+         │
+    ┌────▼────────┐
+    │   Splunk    │
+    └─────────────┘
+```
+
+### Configuration
+
+The collector is configured in `internal/config/default.yaml`:
+
+```yaml
+collector:
+  enabled: true
+  tenants:
+    - "org_Tyb41GMYkQJud6uf"  # Add tenant IDs to collect for
+  services:
+    environment:
+      url: "http://localhost:50800"
+    architecture_inventory:
+      host: "localhost:50100"
+    recommendations:
+      host: "localhost:50106"
+    requirements:
+      host: "localhost:50109"
+  output:
+    format: "json"
+    destination: "stdout"
+  idempotency:
+    state_file: "~/.config/kportforward/collector_state.json"
+```
+
+Users can override this in `~/.config/kportforward/config.yaml`:
+
+```yaml
+collector:
+  tenants:
+    - "org_abc123"
+    - "org_xyz789"
+  output:
+    destination: "/var/log/catio/usage-metrics.log"
+```
+
+### Usage
+
+```bash
+# Run once and exit (for cron jobs)
+kportforward collect --once
+
+# Output to specific file
+kportforward collect --once --output-file /var/log/metrics.log
+
+# Collect for specific tenant only
+kportforward collect --once --tenant-id org_abc123
+
+# Force re-collection (bypass idempotency)
+kportforward collect --once --force
+
+# Custom time bucket (default: 24h)
+kportforward collect --once --bucket-duration=24h
+```
+
+### Scheduling with Cron
+
+The collector is designed to run with external schedulers like cron:
+
+```bash
+# Add to crontab (run daily at midnight)
+0 0 * * * cd /app && /usr/local/bin/kportforward collect --once >> /var/log/collector.log 2>&1
+```
+
+### JSON Output Schema
+
+**Per-Workspace Event:**
+```json
+{
+  "event_type": "usage_metrics",
+  "event_version": "1.0",
+  "timestamp": "2024-01-15T23:59:59Z",
+  "tenant_id": "org_abc123",
+  "workspace_id": "env_xyz789",
+  "workspace_name": "Production",
+  "time_bucket_start": "2024-01-15T00:00:00Z",
+  "time_bucket_end": "2024-01-16T00:00:00Z",
+  "metrics": {
+    "component_count": 156,
+    "relationship_count": 423,
+    "recommendation_count": 12,
+    "requirements_count": 87
+  },
+  "metadata": {
+    "collector_version": "1.0.0",
+    "collection_timestamp": "2024-01-16T00:05:00Z",
+    "collection_duration_ms": 1234
+  }
+}
+```
+
+**Per-Tenant Rollup Event:**
+```json
+{
+  "event_type": "usage_metrics",
+  "event_version": "1.0",
+  "timestamp": "2024-01-15T23:59:59Z",
+  "tenant_id": "org_abc123",
+  "workspace_id": null,
+  "time_bucket_start": "2024-01-15T00:00:00Z",
+  "time_bucket_end": "2024-01-16T00:00:00Z",
+  "metrics": {
+    "workspace_count": 3,
+    "component_count": 456,
+    "relationship_count": 1234,
+    "recommendation_count": 38,
+    "requirements_count": 201
+  },
+  "metadata": {
+    "collector_version": "1.0.0",
+    "collection_timestamp": "2024-01-16T00:05:00Z"
+  }
+}
+```
+
+### Idempotency
+
+The collector tracks completed collections in a state file (`~/.config/kportforward/collector_state.json`) to prevent duplicate data:
+
+- Each time bucket is collected only once
+- Use `--force` flag to override and re-collect
+- Atomic state updates for crash safety
+
+### Implementation Status
+
+**MVP (Completed):**
+- ✅ Workspace discovery via environment service REST API
+- ✅ Component and relationship counts from architecture-inventory
+- ✅ Recommendation counts from recommendations service
+- ✅ Requirements counts from requirements service
+- ✅ Per-workspace and per-tenant event emission
+- ✅ Idempotency state tracking
+- ✅ JSON structured logging
+- ✅ Command-line interface with flags
+
+**Future Enhancements:**
+- ⏭️ User count from Cognito or user service
+- ⏭️ Active user metrics (DAU/WAU/MAU)
+- ⏭️ Archie conversation and message counts
+- ⏭️ View count from analytics
+- ⏭️ Cost metrics (model cost, customer cost, storage)
+- ⏭️ Built-in scheduler with cron expression support
+
+### gRPC Implementation Notes
+
+The collector currently has placeholder implementations for gRPC calls to:
+- architecture-inventory service (port 50100)
+- recommendations-mgnt service (port 50106)
+- requirements-service service (port 50109)
+
+**To complete the gRPC integration:**
+
+1. Copy proto definitions from `catio-tech/protos` repository
+2. Generate Go code: `protoc --go_out=. --go-grpc_out=. *.proto`
+3. Place generated code in `internal/collector/proto/`
+4. Update `clients.go` to use generated client stubs
+5. Implement actual gRPC method calls with proper request/response handling
+
+Example gRPC call pattern:
+```go
+conn, err := sc.getGRPCConn(ctx, sc.endpoints.ArchitectureInventory.Host)
+client := proto.NewMetadataClient(conn)
+response, err := client.GetMetadata(ctx, &proto.GetMetadataRequest{
+    TenantId: tenantID,
+    WorkspaceId: workspaceID,
+})
+return &ArchInventoryMetadata{
+    ComponentCount: response.ComponentCount,
+    RelationshipCount: response.RelationshipCount,
+}, nil
+```
+
+### Testing
+
+```bash
+# Run collector tests
+go test ./internal/collector -v
+
+# Test with live services (requires kportforward running)
+kportforward collect --once --tenant-id org_Tyb41GMYkQJud6uf
+
+# Verify JSON output
+kportforward collect --once | jq .
+```
+
+### Deployment
+
+The collector can be deployed in several ways:
+
+1. **Cron job** on a server with kubectl access
+2. **Kubernetes CronJob** running in the cluster
+3. **Flyte workflow** as part of existing data pipelines
+4. **Docker container** scheduled by external orchestrator
+
+Requirements:
+- kubectl configured with cluster access
+- Network access to service ports (typically via kportforward itself)
+- Write access to state file location

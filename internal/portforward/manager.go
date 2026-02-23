@@ -192,6 +192,10 @@ func (m *Manager) Start() error {
 	} else {
 		m.logger.Info("Initialized %d services (all suspended due to authentication failure)", len(m.services))
 	}
+
+	// Start background data collection once services are up
+	m.startBackgroundCollector()
+
 	return nil
 }
 

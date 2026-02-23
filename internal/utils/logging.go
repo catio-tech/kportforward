@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +15,7 @@ type Logger struct {
 	level   LogLevel
 	output  io.Writer
 	logFile *os.File // Keep reference to close file if needed
+	jsonMode bool    // Enable JSON output mode
 }
 
 // LogLevel represents different logging levels
@@ -59,6 +61,36 @@ func NewLoggerWithFile(level LogLevel, filePath string) (*Logger, error) {
 		level:   level,
 		output:  file,
 		logFile: file,
+	}, nil
+}
+
+// NewLoggerJSON creates a new logger instance where EmitStructured writes JSON to
+// the given output writer (typically stdout) and diagnostic text logs go to stderr.
+// This keeps stdout clean for Splunk ingestion — only JSON events appear there.
+func NewLoggerJSON(level LogLevel, output io.Writer) *Logger {
+	return &Logger{
+		Logger:   log.New(os.Stderr, "", 0),
+		level:    level,
+		output:   output,
+		jsonMode: true,
+	}
+}
+
+// NewLoggerJSONWithFile creates a new logger instance that writes only JSON
+// events to the given file. Diagnostic text logs (Info, Warn, Error) are
+// discarded so the file contains pure JSON lines suitable for Splunk ingestion.
+func NewLoggerJSONWithFile(level LogLevel, filePath string) (*Logger, error) {
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open log file %s: %w", filePath, err)
+	}
+
+	return &Logger{
+		Logger:   log.New(io.Discard, "", 0),
+		level:    level,
+		output:   file,
+		logFile:  file,
+		jsonMode: true,
 	}, nil
 }
 
@@ -108,6 +140,28 @@ func (l *Logger) Close() error {
 		return err
 	}
 	return nil
+}
+
+// EmitStructured emits a structured JSON log entry
+// This is used for emitting data collection events to Splunk or other log aggregators
+func (l *Logger) EmitStructured(data interface{}) error {
+	if !l.jsonMode {
+		return fmt.Errorf("logger not in JSON mode")
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+
+	// Write directly to output without any formatting
+	_, err = l.output.Write(append(jsonData, '\n'))
+	return err
+}
+
+// SetJSONMode enables or disables JSON output mode
+func (l *Logger) SetJSONMode(enabled bool) {
+	l.jsonMode = enabled
 }
 
 // FormatUptime formats a duration as a human-readable uptime string
