@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -104,8 +105,7 @@ func TestStateManager(t *testing.T) {
 
 func TestEmitter(t *testing.T) {
 	// Use io.Discard to avoid actual output
-	logger := utils.NewLoggerJSON(utils.LevelInfo, nil)
-	logger.SetJSONMode(true)
+	logger := utils.NewLoggerJSON(utils.LevelInfo, io.Discard)
 	emitter := NewEmitter(logger, "1.0.0")
 
 	if emitter == nil {
