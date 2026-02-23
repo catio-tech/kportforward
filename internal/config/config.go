@@ -22,6 +22,17 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse default config: %w", err)
 	}
 
+	// If the remote/cached config predates the collector section it will be
+	// missing entirely (Go zero-value: Enabled=false, Tenants=nil, no URLs).
+	// Fall back to the embedded defaults for the collector block only.
+	if !config.Collector.Enabled && len(config.Collector.Tenants) == 0 &&
+		config.Collector.Services.Environment.URL == "" {
+		embedded := &Config{}
+		if err := yaml.Unmarshal(DefaultConfigYAML, embedded); err == nil {
+			config.Collector = embedded.Collector
+		}
+	}
+
 	// Try to load user config and merge if it exists
 	userConfigPath, err := getUserConfigPath()
 	if err != nil {
@@ -85,6 +96,7 @@ func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 		PortForwards:       make(map[string]Service),
 		MonitoringInterval: defaultConfig.MonitoringInterval,
 		UIOptions:          defaultConfig.UIOptions,
+		Collector:          defaultConfig.Collector,
 	}
 
 	// Start with default port forwards
@@ -110,6 +122,17 @@ func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 	}
 	if userConfig.UIOptions.Theme != "" {
 		merged.UIOptions.Theme = userConfig.UIOptions.Theme
+	}
+
+	// Merge collector config if specified by user
+	if userConfig.Collector.Tenants != nil && len(userConfig.Collector.Tenants) > 0 {
+		merged.Collector.Tenants = userConfig.Collector.Tenants
+	}
+	if userConfig.Collector.Output.Format != "" {
+		merged.Collector.Output.Format = userConfig.Collector.Output.Format
+	}
+	if userConfig.Collector.Output.Destination != "" {
+		merged.Collector.Output.Destination = userConfig.Collector.Output.Destination
 	}
 
 	for name, service := range merged.PortForwards {

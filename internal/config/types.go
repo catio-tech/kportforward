@@ -9,6 +9,7 @@ type Config struct {
 	PortForwards       map[string]Service `yaml:"portForwards"`
 	MonitoringInterval time.Duration      `yaml:"monitoringInterval"`
 	UIOptions          UIConfig           `yaml:"uiOptions"`
+	Collector          CollectorConfig    `yaml:"collector,omitempty"`
 }
 
 // Service represents a single port-forward service configuration
@@ -42,4 +43,39 @@ type ServiceStatus struct {
 	InCooldown    bool
 	CooldownUntil time.Time
 	GlobalStatus  string `json:"globalStatus,omitempty"` // Global access status: "healthy", "auth_failure", "network_failure"
+}
+
+// CollectorConfig represents the configuration for the data collector
+type CollectorConfig struct {
+	Enabled bool `yaml:"enabled"`
+	Tenants []string `yaml:"tenants"`
+	Services ServiceEndpoints `yaml:"services"`
+	Output OutputConfig `yaml:"output"`
+	Idempotency IdempotencyConfig `yaml:"idempotency"`
+}
+
+// ServiceEndpoints contains the URLs/hosts for services to collect from
+type ServiceEndpoints struct {
+	Environment ServiceEndpoint `yaml:"environment"`
+	ArchitectureInventory ServiceEndpoint `yaml:"architecture_inventory"`
+	Recommendations ServiceEndpoint `yaml:"recommendations"`
+	Requirements ServiceEndpoint `yaml:"requirements"`
+}
+
+// ServiceEndpoint represents a single service endpoint configuration
+type ServiceEndpoint struct {
+	URL string `yaml:"url,omitempty"` // For REST services
+	Host string `yaml:"host,omitempty"` // For gRPC services
+}
+
+// OutputConfig configures where and how to emit events
+type OutputConfig struct {
+	Format      string `yaml:"format"`      // "json" or "text"
+	Destination string `yaml:"destination"` // "stdout" or file path (used by `collect` command)
+	LogFile     string `yaml:"log_file"`    // file path used when collector runs embedded inside kportforward
+}
+
+// IdempotencyConfig configures state tracking for idempotency
+type IdempotencyConfig struct {
+	StateFile string `yaml:"state_file"`
 }

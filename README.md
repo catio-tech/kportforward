@@ -422,6 +422,62 @@ kportforward --log-file /var/log/kportforward.log
 # - All activity logged to specified file
 ```
 
+## 📊 Data Collector
+
+kportforward includes a data collector that aggregates usage metrics from internal CATIO services and emits structured JSON logs for Splunk ingestion.
+
+### Features
+
+- **Workspace Discovery**: Automatically discovers all workspaces for configured tenants
+- **Metric Collection**: Gathers component counts, relationship counts, recommendation counts, and requirements counts
+- **Structured Logging**: Emits JSON events ready for Splunk ingestion
+- **Idempotency**: Tracks collected time buckets to prevent duplicate data
+- **Flexible Scheduling**: Designed to run with cron or other external schedulers
+
+### Usage
+
+```bash
+# Run collector once (for cron jobs)
+kportforward collect --once
+
+# Output to specific file
+kportforward collect --once --output-file /var/log/metrics.log
+
+# Collect for specific tenant
+kportforward collect --once --tenant-id org_abc123
+
+# Force re-collection
+kportforward collect --once --force
+```
+
+### Cron Scheduling
+
+```bash
+# Add to crontab (run daily at midnight)
+0 0 * * * /usr/local/bin/kportforward collect --once >> /var/log/collector.log 2>&1
+```
+
+### JSON Output
+
+The collector emits structured JSON events with metrics per workspace and tenant:
+
+```json
+{
+  "event_type": "usage_metrics",
+  "event_version": "1.0",
+  "tenant_id": "org_abc123",
+  "workspace_id": "env_xyz789",
+  "metrics": {
+    "component_count": 156,
+    "relationship_count": 423,
+    "recommendation_count": 12,
+    "requirements_count": 87
+  }
+}
+```
+
+See [CLAUDE.md](CLAUDE.md#data-collector) for detailed documentation.
+
 ## 📋 Documentation
 
 - **[README.md](README.md)**: This file - project overview and usage

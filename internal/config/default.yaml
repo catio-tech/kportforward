@@ -133,3 +133,24 @@ monitoringInterval: 1s
 uiOptions:
   refreshRate: 100ms
   theme: "dark"
+
+# Data collector configuration
+collector:
+  enabled: true
+  tenants:
+    - "org_Tyb41GMYkQJud6uf"  # Example tenant ID
+  services:
+    environment:
+      url: "http://localhost:50800"
+    architecture_inventory:
+      host: "localhost:50100"
+    recommendations:
+      host: "localhost:50106"
+    requirements:
+      host: "localhost:50109"
+  output:
+    format: "json"
+    destination: "stdout"
+    log_file: "~/.config/kportforward/usage-metrics.log"
+  idempotency:
+    state_file: "~/.config/kportforward/collector_state.json"
