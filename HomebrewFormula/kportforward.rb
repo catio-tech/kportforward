@@ -1,8 +1,8 @@
 class Kportforward < Formula
   desc "Modern Kubernetes port-forward manager with TUI"
   homepage "https://github.com/catio-tech/kportforward"
-  license "MIT"
   version "1.5.8"
+  license "MIT"
 
   # Use explicit file naming and SHA256 checksums
   if OS.mac?
@@ -25,7 +25,7 @@ class Kportforward < Formula
     # First, find what files we have in the current directory
     binary = Dir["*"].first
     bin.install binary => "kportforward"
-    
+
     # Ensure binary is executable
     chmod 0755, bin/"kportforward"
   end
