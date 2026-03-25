@@ -129,6 +129,14 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
 
+  # Views service
+  views-service:
+    target: "service/views-service"
+    targetPort: 50051
+    localPort: 50111
+    namespace: "catio-data-extraction"
+    type: "rpc"
+
 monitoringInterval: 1s
 uiOptions:
   refreshRate: 100ms
