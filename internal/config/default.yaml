@@ -137,6 +137,20 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
 
+  # CatIOPipe
+  catiopipe:
+    target: "service/catiopipe-grpc"
+    targetPort: 50051
+    localPort: 50112
+    namespace: "catio-data-extraction"
+    type: "rpc"
+  catiopipe-steampipe-headless:
+    target: "service/catiopipe-steampipe-headless"
+    targetPort: 9193
+    localPort: 50113
+    namespace: "catio-data-extraction"
+    type: "other"
+
 monitoringInterval: 1s
 uiOptions:
   refreshRate: 100ms
