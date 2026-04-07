@@ -159,6 +159,7 @@ portForwards:
     targetPort: 8080
     localPort: 50114
     namespace: "catio-data-extraction"
+    swaggerPath: "api/v1/swagger"
     type: "rest"
 
 monitoringInterval: 1s
