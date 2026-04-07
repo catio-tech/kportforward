@@ -145,6 +145,22 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
 
+  # Eval Service GRPC
+  eval-service:
+    target: "service/eval-service"
+    targetPort: 50051
+    localPort: 50113
+    namespace: "catio-data-extraction"
+    type: "rpc"
+  
+  # Eval Service HTTP
+  eval-service-http:
+    target: "service/eval-service"
+    targetPort: 8080
+    localPort: 50114
+    namespace: "catio-data-extraction"
+    type: "rest"
+
 monitoringInterval: 1s
 uiOptions:
   refreshRate: 100ms
