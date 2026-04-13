@@ -153,14 +153,13 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
   
-  # Eval Service HTTP
-  eval-service-http:
-    target: "service/eval-service"
-    targetPort: 8080
+  # Eval Dashboard WEB
+  eval-dashboard:
+    target: "service/eval-dashboard"
+    targetPort: 3000
     localPort: 50114
     namespace: "catio-data-extraction"
-    swaggerPath: "api/v1/swagger"
-    type: "rest"
+    type: "web"
 
 monitoringInterval: 1s
 uiOptions:
