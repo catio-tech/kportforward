@@ -161,6 +161,13 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "web"
 
+  cost-api:
+    target: "service/cost-api"
+    targetPort: 50402
+    localPort: 50402
+    namespace: "catio-data-extraction"
+    type: "rpc"
+
 monitoringInterval: 1s
 uiOptions:
   refreshRate: 100ms
