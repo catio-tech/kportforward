@@ -178,7 +178,7 @@ portForwards:
 
   workspace-management-api:
     target: "service/workspace-management-api"
-    targetPort: 50051
+    targetPort: 80
     localPort: 50116
     namespace: "catio-data-extraction"
     type: "rpc"
