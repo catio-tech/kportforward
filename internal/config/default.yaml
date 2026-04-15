@@ -79,6 +79,14 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "web"
 
+  # File Management API
+  file-management-api:
+    target: "service/file-management-api"
+    targetPort: 50051
+    localPort: 50115
+    namespace: "catio-data-extraction"
+    type: "rpc"
+
   # Flyte Console and admin services
   flyte-console:
     target: "service/flyteconsole"
