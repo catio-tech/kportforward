@@ -82,7 +82,7 @@ portForwards:
   # File Management API
   file-management-api:
     target: "service/file-management-api"
-    targetPort: 50051
+    targetPort: 80
     localPort: 50115
     namespace: "catio-data-extraction"
     type: "rpc"
