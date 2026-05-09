@@ -195,7 +195,7 @@ The application uses modern Go patterns and frameworks:
 ## Configuration
 
 ### Embedded Default Configuration
-The application includes pre-configured services embedded at compile-time for Catio microservices architecture. These can be found in `internal/config/default.yaml`. The embedded configuration includes 23 pre-configured services across different namespaces (catio-data-extraction, flyte) with various service types (rest, rpc, web, other).
+The application includes pre-configured services embedded at compile-time for Catio microservices architecture. These can be found in `internal/config/default.yaml`. The embedded configuration includes 20 pre-configured services across different namespaces (catio-data-extraction, flyte) with various service types (rest, rpc, web, other).
 
 ### User Configuration Override
 Users can create `~/.config/kportforward/config.yaml` to add services or override defaults:
@@ -231,7 +231,7 @@ uiOptions:
 - **Cross-Platform**: Works on macOS, Linux, and Windows
 - **Modern Terminal UI**: Interactive interface with real-time updates and keyboard navigation
 - **Automatic Recovery**: Monitors and restarts failed port-forwards with exponential backoff
-- **Embedded Configuration**: 23 pre-configured services with user override capability
+- **Embedded Configuration**: 20 pre-configured services with user override capability
 - **Auto-Updates**: Daily update checks with in-UI notifications
 
 ### Advanced Features
