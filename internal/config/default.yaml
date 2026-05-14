@@ -6,12 +6,6 @@ portForwards:
     localPort: 50100
     namespace: "catio-data-extraction"
     type: "rpc"
-  initialization:
-    target: "service/initialization"
-    targetPort: 80
-    localPort: 50801
-    namespace: "catio-data-extraction"
-    type: "rest"
   recommendations-mgnt:
     target: "service/recommendations-mgnt"
     targetPort: 50051
