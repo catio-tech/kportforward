@@ -42,12 +42,6 @@ portForwards:
     localPort: 50105
     namespace: "catio-data-extraction"
     type: "rpc"
-  recommendations-dashboard:
-    target: "service/recommendations-dashboard"
-    targetPort: 80
-    localPort: 8021
-    namespace: "catio-data-extraction"
-    type: "web"
 
   # File Management API
   file-management-api:
