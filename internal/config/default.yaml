@@ -147,6 +147,13 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
 
+  akb-search-api:
+    target: "service/akb-search-api"
+    targetPort: 80
+    localPort: 50117
+    namespace: "catio-data-extraction"
+    type: "rpc"
+
 monitoringInterval: 1s
 uiOptions:
   refreshRate: 100ms
