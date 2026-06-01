@@ -154,6 +154,14 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
 
+  # Architecture Knowledge Base UI WEB
+  architecture-knowledge-base-ui:
+    target: "service/architecture-knowledge-base-ui"
+    targetPort: 3000
+    localPort: 50118
+    namespace: "catio-data-extraction"
+    type: "web"
+
 monitoringInterval: 1s
 uiOptions:
   refreshRate: 100ms
