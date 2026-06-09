@@ -85,14 +85,6 @@ portForwards:
     localPort: 50107
     namespace: "catio-data-extraction"
     type: "rpc"
-  # Requirements service
-  requirements-service:
-    target: "service/requirements-service"
-    targetPort: 80
-    localPort: 50109
-    namespace: "catio-data-extraction"
-    type: "rpc"
-
   # Question service
   question-service:
     target: "service/question-service"
