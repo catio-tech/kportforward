@@ -154,6 +154,14 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "web"
 
+  # Overwatch WEB
+  overwatch:
+    target: "service/overwatch-web"
+    targetPort: 8080
+    localPort: 3030
+    namespace: "overwatch-dev-us-a"
+    type: "web"
+
 monitoringInterval: 1s
 uiOptions:
   refreshRate: 100ms
