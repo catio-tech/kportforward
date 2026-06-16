@@ -157,7 +157,7 @@ portForwards:
   # Overwatch WEB
   overwatch:
     target: "service/overwatch-web"
-    targetPort: 8080
+    targetPort: 80
     localPort: 3030
     namespace: "overwatch-dev-us-a"
     type: "web"
