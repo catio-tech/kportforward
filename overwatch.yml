@@ -1,0 +1,12 @@
+# Overwatch manifest — see /docs for the schema.
+---
+apiVersion: overwatch/v1
+kind: service
+owner: "@catio-tech/engineering"
+
+classification:
+  tier: 3
+  lifecycle: active
+
+deploy:
+  strategy: trunk
