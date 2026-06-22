@@ -30,12 +30,6 @@ portForwards:
     localPort: 8027
     namespace: "catio-data-extraction"
     type: "rest"
-  embeddings-data-service:
-    target: "service/embeddings-data-service"
-    targetPort: 5001
-    localPort: 50103
-    namespace: "catio-data-extraction"
-    type: "rpc"
   workflow-trigger:
     target: "service/workflow-trigger"
     targetPort: 80

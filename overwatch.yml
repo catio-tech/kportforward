@@ -1,0 +1,11 @@
+---
+apiVersion: overwatch/v1
+kind: tool
+owner: "@catio-tech/engineering"
+
+classification:
+  tier: 3
+  lifecycle: active
+
+deploy:
+  strategy: trunk
