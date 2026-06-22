@@ -1,7 +1,6 @@
-# Overwatch manifest — see /docs for the schema.
 ---
 apiVersion: overwatch/v1
-kind: service
+kind: tool
 owner: "@catio-tech/engineering"
 
 classification:
