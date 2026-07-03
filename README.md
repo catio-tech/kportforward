@@ -116,7 +116,7 @@ Invoke-WebRequest -Uri "https://github.com/catio-tech/kportforward/releases/late
    ```
    - Without `--multi-env`, behavior is unchanged (single environment, current kubectl context).
    - Environments come from a **separate** config, `environments.yaml` (embedded default; override at `~/.config/kportforward/environments.yaml`). Each environment pins a `context` and lists its own services/ports.
-   - Ports encode the environment: each service keeps the same last three digits and differs only by the prefix — **dev → `50xxx`**, **prod → `70xxx`** (e.g. `extractor-config-service` is `50102` for dev, `70102` for prod). (`overwatch` is dev-only, on `50030`.)
+   - Ports encode the environment: each service keeps the same last three digits and differs only by the prefix — **dev → `50xxx`**, **prod → `60xxx`** (e.g. `extractor-config-service` is `50102` for dev, `60102` for prod). Prefixes stay ≤ 64 because TCP ports max out at 65535. (`overwatch` is dev-only, on `50030`.)
    - In `--multi-env` a port conflict is a **hard error** (no silent reassignment), so the local port always identifies the environment.
 
 ## ⚙️ Configuration

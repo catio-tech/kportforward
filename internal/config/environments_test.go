@@ -46,8 +46,43 @@ func TestLoadMultiEnvConfigEmbedded(t *testing.T) {
 		t.Fatalf("dev extractor-config-service expected in 50xxx, got %+v (ok=%v)", ds.LocalPort, ok)
 	}
 	ps, ok := prod.Services["extractor-config-service"]
-	if !ok || ps.LocalPort < 70000 || ps.LocalPort >= 80000 {
-		t.Fatalf("prod extractor-config-service expected in 70xxx, got %+v (ok=%v)", ps.LocalPort, ok)
+	if !ok || ps.LocalPort < 60000 || ps.LocalPort >= 70000 {
+		t.Fatalf("prod extractor-config-service expected in 60xxx, got %+v (ok=%v)", ps.LocalPort, ok)
+	}
+
+	// Every configured port must be a valid TCP port (<= 65535); 70xxx would not be.
+	for _, e := range mec.Environments {
+		for name, s := range e.Services {
+			if s.LocalPort < 1 || s.LocalPort > 65535 {
+				t.Errorf("%s/%s localPort %d is outside the valid TCP range", e.Name, name, s.LocalPort)
+			}
+		}
+	}
+}
+
+// TestValidateMultiEnvConfigRejectsBadPort ensures an out-of-range port is
+// rejected at load with a clear error (rather than surfacing later as a
+// misleading "port already in use").
+func TestValidateMultiEnvConfigRejectsBadPort(t *testing.T) {
+	ok := &MultiEnvConfig{Environments: []Environment{
+		{Name: "prod", Context: "ctx", Services: map[string]Service{"a": {LocalPort: 60102}}},
+	}}
+	if err := validateMultiEnvConfig(ok); err != nil {
+		t.Fatalf("valid config rejected: %v", err)
+	}
+
+	bad := &MultiEnvConfig{Environments: []Environment{
+		{Name: "prod", Context: "ctx", Services: map[string]Service{"a": {LocalPort: 70102}}},
+	}}
+	if err := validateMultiEnvConfig(bad); err == nil {
+		t.Fatal("expected out-of-range port 70102 to be rejected, got nil")
+	}
+
+	noCtx := &MultiEnvConfig{Environments: []Environment{
+		{Name: "prod", Context: "", Services: map[string]Service{"a": {LocalPort: 60102}}},
+	}}
+	if err := validateMultiEnvConfig(noCtx); err == nil {
+		t.Fatal("expected environment without context to be rejected, got nil")
 	}
 }
 
@@ -73,8 +108,8 @@ func TestMultiEnvPortsMatchAcrossEnvironments(t *testing.T) {
 		if ds.LocalPort/1000 != 50 {
 			t.Errorf("dev %s port %d is not in the 50xxx band", name, ds.LocalPort)
 		}
-		if ps.LocalPort/1000 != 70 {
-			t.Errorf("prod %s port %d is not in the 70xxx band", name, ps.LocalPort)
+		if ps.LocalPort/1000 != 60 {
+			t.Errorf("prod %s port %d is not in the 60xxx band", name, ps.LocalPort)
 		}
 		if ds.LocalPort%1000 != ps.LocalPort%1000 {
 			t.Errorf("%s: dev(%d) and prod(%d) must share the last three digits", name, ds.LocalPort, ps.LocalPort)
