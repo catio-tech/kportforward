@@ -32,6 +32,7 @@ var (
 	// CLI flags
 	enableGRPCUI         bool
 	enableSwaggerUI      bool
+	multiEnv             bool
 	logFile              string
 	configURL            string
 	pprofAddr            string
@@ -70,6 +71,7 @@ func main() {
 	// Add CLI flags
 	rootCmd.Flags().BoolVar(&enableGRPCUI, "grpcui", false, "Enable gRPC UI for RPC services")
 	rootCmd.Flags().BoolVar(&enableSwaggerUI, "swaggerui", false, "Enable Swagger UI for REST services")
+	rootCmd.Flags().BoolVar(&multiEnv, "multi-env", false, "Forward all environments at once (from environments.yaml) on distinct ports, each pinned to its kubectl context")
 	rootCmd.Flags().StringVar(&logFile, "log-file", "", "Write logs to file (default: logs are discarded to avoid interfering with TUI)")
 	rootCmd.Flags().StringVar(&configURL, "config-url", config.DefaultRemoteConfigURL, "URL to fetch default config from (set to \"\" to use embedded defaults only)")
 	rootCmd.Flags().StringVar(&pprofAddr, "pprof", "", "Start pprof HTTP server (e.g. localhost:6060)")
@@ -114,10 +116,23 @@ func runPortForward(cmd *cobra.Command, args []string) {
 	// Set remote config URL (may be overridden by --config-url flag)
 	config.SetRemoteConfigURL(configURL)
 
-	// Load configuration
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+	// Load configuration. With --multi-env, load the separate environments config
+	// and flatten it into per-environment services pinned to their kubectl context;
+	// otherwise load the normal single-environment config (unchanged behavior).
+	var cfg *config.Config
+	var err error
+	if multiEnv {
+		var mec *config.MultiEnvConfig
+		mec, err = config.LoadMultiEnvConfig()
+		if err != nil {
+			log.Fatalf("Failed to load multi-env configuration: %v", err)
+		}
+		cfg = config.FlattenEnvironments(mec)
+	} else {
+		cfg, err = config.LoadConfig()
+		if err != nil {
+			log.Fatalf("Failed to load configuration: %v", err)
+		}
 	}
 
 	// Initialize logger
@@ -125,7 +140,11 @@ func runPortForward(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
-	logger.Info("Starting kportforward with %d services", len(cfg.PortForwards))
+	if multiEnv {
+		logger.Info("Starting kportforward in multi-env mode with %d services", len(cfg.PortForwards))
+	} else {
+		logger.Info("Starting kportforward with %d services", len(cfg.PortForwards))
+	}
 
 	// Optional pprof server for live profiling
 	if pprofAddr != "" {
@@ -195,6 +214,7 @@ func runPortForward(cmd *cobra.Command, args []string) {
 
 	// Create port forward manager
 	manager := portforward.NewManager(cfg, logger)
+	manager.SetMultiEnv(multiEnv)
 
 	// Set UI handlers on the manager
 	manager.SetUIHandlers(grpcUIManager, swaggerUIManager)

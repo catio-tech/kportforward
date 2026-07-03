@@ -1,0 +1,288 @@
+# Multi-environment configuration for kportforward.
+#
+# Used ONLY when the --multi-env flag is passed. Without --multi-env, kportforward
+# ignores this file and behaves exactly as before (single environment, current
+# kubectl context, ports from default.yaml / config.yaml).
+#
+# Each environment pins a kubectl context and forwards its own service list on a
+# distinct port band, so both run at once with no switchover and no ambiguity:
+#   dev  -> 50xxx (matches single-env ports)
+#   prod -> 70xxx  (prod port = 70000 + dev port % 1000)
+#
+# In --multi-env mode a port conflict is a hard error (no silent reassignment),
+# so the port always identifies the environment.
+#
+# User override: ~/.config/kportforward/environments.yaml (replaces this file).
+monitoringInterval: 1s
+uiOptions:
+  refreshRate: 100ms
+  theme: dark
+environments:
+- name: dev
+  context: arn:aws:eks:us-west-2:891377056770:cluster/catio-cluster
+  services:
+    arch-inventory:
+      target: service/architecture-inventory
+      targetPort: 80
+      localPort: 50100
+      namespace: catio-data-extraction
+      type: rpc
+    recommendations-mgnt:
+      target: service/recommendations-mgnt
+      targetPort: 50051
+      localPort: 50106
+      namespace: catio-data-extraction
+      type: rpc
+    process-monitor:
+      target: service/process-monitor-v2
+      targetPort: 5001
+      localPort: 50101
+      namespace: catio-data-extraction
+      type: rpc
+    extractor-config-service:
+      target: service/extractor-config-service-rpc
+      targetPort: 50051
+      localPort: 50102
+      namespace: catio-data-extraction
+      type: rpc
+    extractor-trigger:
+      target: service/extractor-trigger
+      targetPort: 80
+      localPort: 8027
+      namespace: catio-data-extraction
+      type: rest
+    workflow-trigger:
+      target: service/workflow-trigger
+      targetPort: 80
+      localPort: 50105
+      namespace: catio-data-extraction
+      type: rpc
+    file-management-api:
+      target: service/file-management-api
+      targetPort: 80
+      localPort: 50115
+      namespace: catio-data-extraction
+      type: rpc
+    flyte-console:
+      target: service/flyteconsole
+      targetPort: 80
+      localPort: 8088
+      namespace: flyte
+      type: web
+    flyte-admin-rpc:
+      target: service/flyteadmin
+      targetPort: 81
+      localPort: 8089
+      namespace: flyte
+      type: rpc
+      swaggerPath: configuration/swagger
+      apiPath: api
+    flyte-admin-web:
+      target: service/flyteadmin
+      targetPort: 80
+      localPort: 8081
+      namespace: flyte
+      type: other
+    archie-backend:
+      target: service/archie-backend
+      targetPort: 50051
+      localPort: 50108
+      namespace: catio-data-extraction
+      type: rpc
+    llm-router:
+      target: service/llm-router
+      targetPort: 80
+      localPort: 50107
+      namespace: catio-data-extraction
+      type: rpc
+    question-service:
+      target: service/question-service
+      targetPort: 80
+      localPort: 50110
+      namespace: catio-data-extraction
+      type: rpc
+    views-service:
+      target: service/views-service
+      targetPort: 50051
+      localPort: 50111
+      namespace: catio-data-extraction
+      type: rpc
+    catiopipe:
+      target: service/catiopipe-grpc
+      targetPort: 50051
+      localPort: 50112
+      namespace: catio-data-extraction
+      type: rpc
+    eval-service:
+      target: service/eval-service
+      targetPort: 50051
+      localPort: 50113
+      namespace: catio-data-extraction
+      type: rpc
+    eval-dashboard:
+      target: service/eval-dashboard
+      targetPort: 3000
+      localPort: 50114
+      namespace: catio-data-extraction
+      type: web
+    cost-api:
+      target: service/cost-api
+      targetPort: 50402
+      localPort: 50402
+      namespace: catio-data-extraction
+      type: rpc
+    workspace-management-api:
+      target: service/workspace-management-api
+      targetPort: 80
+      localPort: 50116
+      namespace: catio-data-extraction
+      type: rpc
+    akb-search-api:
+      target: service/akb-search-api
+      targetPort: 80
+      localPort: 50117
+      namespace: catio-data-extraction
+      type: rpc
+    architecture-knowledge-base-ui:
+      target: service/architecture-knowledge-base-ui
+      targetPort: 3000
+      localPort: 50118
+      namespace: catio-data-extraction
+      type: web
+    overwatch:
+      target: service/overwatch-web
+      targetPort: 80
+      localPort: 3030
+      namespace: overwatch-dev-us-a
+      type: web
+- name: prod
+  context: arn:aws:eks:us-west-2:090135924592:cluster/catio-cluster
+  services:
+    arch-inventory:
+      target: service/architecture-inventory
+      targetPort: 80
+      localPort: 70100
+      namespace: catio-data-extraction
+      type: rpc
+    recommendations-mgnt:
+      target: service/recommendations-mgnt
+      targetPort: 50051
+      localPort: 70106
+      namespace: catio-data-extraction
+      type: rpc
+    process-monitor:
+      target: service/process-monitor-v2
+      targetPort: 5001
+      localPort: 70101
+      namespace: catio-data-extraction
+      type: rpc
+    extractor-config-service:
+      target: service/extractor-config-service-rpc
+      targetPort: 50051
+      localPort: 70102
+      namespace: catio-data-extraction
+      type: rpc
+    extractor-trigger:
+      target: service/extractor-trigger
+      targetPort: 80
+      localPort: 70027
+      namespace: catio-data-extraction
+      type: rest
+    workflow-trigger:
+      target: service/workflow-trigger
+      targetPort: 80
+      localPort: 70105
+      namespace: catio-data-extraction
+      type: rpc
+    file-management-api:
+      target: service/file-management-api
+      targetPort: 80
+      localPort: 70115
+      namespace: catio-data-extraction
+      type: rpc
+    flyte-console:
+      target: service/flyteconsole
+      targetPort: 80
+      localPort: 70088
+      namespace: flyte
+      type: web
+    flyte-admin-rpc:
+      target: service/flyteadmin
+      targetPort: 81
+      localPort: 70089
+      namespace: flyte
+      type: rpc
+      swaggerPath: configuration/swagger
+      apiPath: api
+    flyte-admin-web:
+      target: service/flyteadmin
+      targetPort: 80
+      localPort: 70081
+      namespace: flyte
+      type: other
+    archie-backend:
+      target: service/archie-backend
+      targetPort: 50051
+      localPort: 70108
+      namespace: catio-data-extraction
+      type: rpc
+    llm-router:
+      target: service/llm-router
+      targetPort: 80
+      localPort: 70107
+      namespace: catio-data-extraction
+      type: rpc
+    question-service:
+      target: service/question-service
+      targetPort: 80
+      localPort: 70110
+      namespace: catio-data-extraction
+      type: rpc
+    views-service:
+      target: service/views-service
+      targetPort: 50051
+      localPort: 70111
+      namespace: catio-data-extraction
+      type: rpc
+    catiopipe:
+      target: service/catiopipe-grpc
+      targetPort: 50051
+      localPort: 70112
+      namespace: catio-data-extraction
+      type: rpc
+    eval-service:
+      target: service/eval-service
+      targetPort: 50051
+      localPort: 70113
+      namespace: catio-data-extraction
+      type: rpc
+    eval-dashboard:
+      target: service/eval-dashboard
+      targetPort: 3000
+      localPort: 70114
+      namespace: catio-data-extraction
+      type: web
+    cost-api:
+      target: service/cost-api
+      targetPort: 50402
+      localPort: 70402
+      namespace: catio-data-extraction
+      type: rpc
+    workspace-management-api:
+      target: service/workspace-management-api
+      targetPort: 80
+      localPort: 70116
+      namespace: catio-data-extraction
+      type: rpc
+    akb-search-api:
+      target: service/akb-search-api
+      targetPort: 80
+      localPort: 70117
+      namespace: catio-data-extraction
+      type: rpc
+    architecture-knowledge-base-ui:
+      target: service/architecture-knowledge-base-ui
+      targetPort: 3000
+      localPort: 70118
+      namespace: catio-data-extraction
+      type: web

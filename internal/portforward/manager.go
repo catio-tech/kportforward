@@ -38,6 +38,11 @@ type Manager struct {
 	kubernetesContext string
 	shuttingDown      bool
 
+	// multiEnv indicates each service is pinned to its own kubectl context
+	// (via Service.Context). In this mode ambient context changes must NOT
+	// restart services, and port conflicts fail loudly instead of reassigning.
+	multiEnv bool
+
 	// UI Handlers
 	grpcUIHandler    UIHandler
 	swaggerUIHandler UIHandler
@@ -98,6 +103,15 @@ func NewManager(cfg *config.Config, logger *utils.Logger) *Manager {
 	}
 }
 
+// SetMultiEnv enables multi-environment mode. Must be called before Start().
+// In multi-env mode services are pinned to per-service kubectl contexts, ambient
+// context changes do not trigger restarts, and port conflicts are fatal.
+func (m *Manager) SetMultiEnv(enabled bool) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.multiEnv = enabled
+}
+
 // SetUIHandlers sets the UI handlers for the manager
 func (m *Manager) SetUIHandlers(grpcUI, swaggerUI UIHandler) {
 	m.mutex.Lock()
@@ -132,6 +146,7 @@ func (m *Manager) Start() error {
 	// Create service managers
 	for name, serviceConfig := range m.config.PortForwards {
 		sm := NewServiceManager(name, serviceConfig, m.logger)
+		sm.strictPort = m.multiEnv
 		m.services[name] = sm
 	}
 
@@ -414,6 +429,7 @@ func (m *Manager) checkKubernetesContext() {
 
 	m.mutex.RLock()
 	currentContext := m.kubernetesContext
+	multiEnv := m.multiEnv
 	m.mutex.RUnlock()
 
 	// Log context check for debugging purposes
@@ -427,7 +443,9 @@ func (m *Manager) checkKubernetesContext() {
 		// Channel is full, skip this update
 	}
 
-	if newContext != currentContext && newContext != "N/A" {
+	// In multi-env mode each forward is pinned to its own context via --context,
+	// so a change to the ambient current-context must not tear everything down.
+	if newContext != currentContext && newContext != "N/A" && !multiEnv {
 		m.logger.Info("Kubernetes context changed from %s to %s, restarting all services",
 			currentContext, newContext)
 

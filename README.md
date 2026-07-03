@@ -108,6 +108,17 @@ Invoke-WebRequest -Uri "https://github.com/catio-tech/kportforward/releases/late
    kportforward --grpcui --swaggerui --log-file /var/log/kportforward.log
    ```
 
+5. **Multiple environments at once** (`--multi-env`):
+   ```bash
+   # Forward dev AND prod simultaneously on distinct ports, each pinned to its
+   # own kubectl context — no manual context switching.
+   kportforward --multi-env
+   ```
+   - Without `--multi-env`, behavior is unchanged (single environment, current kubectl context).
+   - Environments come from a **separate** config, `environments.yaml` (embedded default; override at `~/.config/kportforward/environments.yaml`). Each environment pins a `context` and lists its own services/ports.
+   - Ports encode the environment: **dev → `50xxx`**, **prod → `70xxx`** (e.g. `extractor-config-service` is `50102` for dev, `70102` for prod).
+   - In `--multi-env` a port conflict is a **hard error** (no silent reassignment), so the local port always identifies the environment.
+
 ## ⚙️ Configuration
 
 kportforward uses embedded configuration for immediate functionality, with support for user customizations.
