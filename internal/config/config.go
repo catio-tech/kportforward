@@ -66,6 +66,9 @@ func LoadMultiEnvConfig() (*MultiEnvConfig, error) {
 	if len(cfg.Environments) == 0 {
 		return nil, fmt.Errorf("multi-env config has no environments")
 	}
+	if err := validateMultiEnvConfig(cfg); err != nil {
+		return nil, err
+	}
 	// Fall back to the single-env defaults for unset UI/monitoring settings.
 	if cfg.MonitoringInterval == 0 {
 		cfg.MonitoringInterval = time.Second
@@ -77,6 +80,25 @@ func LoadMultiEnvConfig() (*MultiEnvConfig, error) {
 		cfg.UIOptions.Theme = "dark"
 	}
 	return cfg, nil
+}
+
+// validateMultiEnvConfig rejects a multi-env config that cannot work: an
+// environment without a context, or a service whose local port is outside the
+// valid TCP range (1-65535). Catching this at load gives a clear error instead
+// of a misleading "port already in use" when the OS later refuses to bind it.
+func validateMultiEnvConfig(mec *MultiEnvConfig) error {
+	for _, env := range mec.Environments {
+		if env.Context == "" {
+			return fmt.Errorf("multi-env: environment %q has no context", env.Name)
+		}
+		for name, svc := range env.Services {
+			if svc.LocalPort < 1 || svc.LocalPort > 65535 {
+				return fmt.Errorf("multi-env: environment %q service %q localPort %d is outside the valid range 1-65535",
+					env.Name, name, svc.LocalPort)
+			}
+		}
+	}
+	return nil
 }
 
 // FlattenEnvironments collapses a MultiEnvConfig into a single Config whose
