@@ -51,6 +51,37 @@ func TestLoadMultiEnvConfigEmbedded(t *testing.T) {
 	}
 }
 
+// TestMultiEnvPortsMatchAcrossEnvironments verifies the embedded config's port
+// convention: every service present in both dev and prod shares the same last
+// three digits and differs only by the 50xxx (dev) / 70xxx (prod) prefix.
+func TestMultiEnvPortsMatchAcrossEnvironments(t *testing.T) {
+	mec, err := LoadMultiEnvConfig()
+	if err != nil {
+		t.Fatalf("LoadMultiEnvConfig failed: %v", err)
+	}
+	byName := map[string]Environment{}
+	for _, e := range mec.Environments {
+		byName[e.Name] = e
+	}
+	dev, prod := byName["dev"], byName["prod"]
+
+	for name, ds := range dev.Services {
+		ps, ok := prod.Services[name]
+		if !ok {
+			continue // dev-only service (e.g. overwatch) — no prod counterpart
+		}
+		if ds.LocalPort/1000 != 50 {
+			t.Errorf("dev %s port %d is not in the 50xxx band", name, ds.LocalPort)
+		}
+		if ps.LocalPort/1000 != 70 {
+			t.Errorf("prod %s port %d is not in the 70xxx band", name, ps.LocalPort)
+		}
+		if ds.LocalPort%1000 != ps.LocalPort%1000 {
+			t.Errorf("%s: dev(%d) and prod(%d) must share the last three digits", name, ds.LocalPort, ps.LocalPort)
+		}
+	}
+}
+
 // TestFlattenEnvironments verifies services are env-qualified, context-pinned,
 // and keep their per-environment ports.
 func TestFlattenEnvironments(t *testing.T) {

@@ -5,9 +5,10 @@
 # kubectl context, ports from default.yaml / config.yaml).
 #
 # Each environment pins a kubectl context and forwards its own service list on a
-# distinct port band, so both run at once with no switchover and no ambiguity:
-#   dev  -> 50xxx (matches single-env ports)
-#   prod -> 70xxx  (prod port = 70000 + dev port % 1000)
+# distinct port band, so both run at once with no switchover and no ambiguity.
+# For every service the last three digits (xxx) match across environments; only
+# the prefix differs:  dev -> 50xxx,  prod -> 70xxx  (prod = dev + 20000).
+# (overwatch is dev-only — its namespace is dev-specific — and keeps port 3030.)
 #
 # In --multi-env mode a port conflict is a hard error (no silent reassignment),
 # so the port always identifies the environment.
@@ -48,7 +49,7 @@ environments:
     extractor-trigger:
       target: service/extractor-trigger
       targetPort: 80
-      localPort: 8027
+      localPort: 50027
       namespace: catio-data-extraction
       type: rest
     workflow-trigger:
@@ -66,13 +67,13 @@ environments:
     flyte-console:
       target: service/flyteconsole
       targetPort: 80
-      localPort: 8088
+      localPort: 50088
       namespace: flyte
       type: web
     flyte-admin-rpc:
       target: service/flyteadmin
       targetPort: 81
-      localPort: 8089
+      localPort: 50089
       namespace: flyte
       type: rpc
       swaggerPath: configuration/swagger
@@ -80,7 +81,7 @@ environments:
     flyte-admin-web:
       target: service/flyteadmin
       targetPort: 80
-      localPort: 8081
+      localPort: 50081
       namespace: flyte
       type: other
     archie-backend:
