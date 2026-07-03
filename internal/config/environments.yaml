@@ -8,7 +8,7 @@
 # distinct port band, so both run at once with no switchover and no ambiguity.
 # For every service the last three digits (xxx) match across environments; only
 # the prefix differs:  dev -> 50xxx,  prod -> 70xxx  (prod = dev + 20000).
-# (overwatch is dev-only — its namespace is dev-specific — and keeps port 3030.)
+# (overwatch is dev-only — its namespace is dev-specific — so it has no prod entry.)
 #
 # In --multi-env mode a port conflict is a hard error (no silent reassignment),
 # so the port always identifies the environment.
@@ -153,7 +153,7 @@ environments:
     overwatch:
       target: service/overwatch-web
       targetPort: 80
-      localPort: 3030
+      localPort: 50030
       namespace: overwatch-dev-us-a
       type: web
 - name: prod
