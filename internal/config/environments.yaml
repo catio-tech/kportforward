@@ -154,7 +154,7 @@ environments:
     overwatch:
       target: service/overwatch-web
       targetPort: 80
-      localPort: 3030
+      localPort: 50030
       namespace: overwatch-dev-us-a
       type: web
 - name: prod
