@@ -37,6 +37,10 @@ type ServiceManager struct {
 	lastHealthCheckTime time.Time
 	// Restart deduplication
 	restarting atomic.Bool
+	// strictPort disables automatic port reassignment (multi-env mode): on a
+	// port conflict the service fails loudly instead of silently moving ports,
+	// so the local port always identifies the environment.
+	strictPort bool
 }
 
 // NewServiceManager creates a new service manager
@@ -99,6 +103,7 @@ func (sm *ServiceManager) Start() error {
 		sm.config.Target,
 		actualPort,
 		sm.config.TargetPort,
+		sm.config.Context,
 		sm.logger,
 		sm.name,
 	)
@@ -401,6 +406,15 @@ func (sm *ServiceManager) Shutdown() {
 func (sm *ServiceManager) resolvePort() (int, error) {
 	if utils.IsPortAvailable(sm.config.LocalPort) {
 		return sm.config.LocalPort, nil
+	}
+
+	// Multi-env mode: never silently reassign — the port encodes the environment.
+	// Fail loudly so the conflict is visible instead of moving to a random port.
+	if sm.strictPort {
+		sm.logger.Error("Port %d for %s is already in use; refusing to reassign in --multi-env mode (free the port or fix the config)",
+			sm.config.LocalPort, sm.name)
+		return 0, fmt.Errorf("port %d for %s is already in use (multi-env: not reassigning)",
+			sm.config.LocalPort, sm.name)
 	}
 
 	// Port is in use, find an alternative

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -40,6 +41,74 @@ func LoadConfig() (*Config, error) {
 	// Merge user config into default config
 	mergedConfig := mergeConfigs(config, userConfig)
 	return mergedConfig, nil
+}
+
+// LoadMultiEnvConfig loads the multi-environment configuration used by --multi-env.
+// It starts from the embedded environments.yaml and, if the user has a
+// ~/.config/kportforward/environments.yaml, that file fully replaces the
+// embedded default (the environment list is explicit, not merged per-service).
+func LoadMultiEnvConfig() (*MultiEnvConfig, error) {
+	cfg := &MultiEnvConfig{}
+	if err := yaml.Unmarshal(DefaultEnvironmentsYAML, cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse embedded environments config: %w", err)
+	}
+
+	if userPath, err := getUserMultiEnvConfigPath(); err == nil {
+		if data, err := os.ReadFile(userPath); err == nil {
+			userCfg := &MultiEnvConfig{}
+			if err := yaml.Unmarshal(data, userCfg); err != nil {
+				return nil, fmt.Errorf("failed to parse user environments config: %w", err)
+			}
+			cfg = userCfg
+		}
+	}
+
+	if len(cfg.Environments) == 0 {
+		return nil, fmt.Errorf("multi-env config has no environments")
+	}
+	// Fall back to the single-env defaults for unset UI/monitoring settings.
+	if cfg.MonitoringInterval == 0 {
+		cfg.MonitoringInterval = time.Second
+	}
+	if cfg.UIOptions.RefreshRate == 0 {
+		cfg.UIOptions.RefreshRate = 100 * time.Millisecond
+	}
+	if cfg.UIOptions.Theme == "" {
+		cfg.UIOptions.Theme = "dark"
+	}
+	return cfg, nil
+}
+
+// FlattenEnvironments collapses a MultiEnvConfig into a single Config whose
+// PortForwards contains every environment's services, each keyed as
+// "<service>-<env>" and pinned to that environment's kubectl context. This lets
+// the rest of the manager treat multi-env exactly like a large single-env run,
+// while every forward still targets the correct cluster.
+func FlattenEnvironments(mec *MultiEnvConfig) *Config {
+	out := &Config{
+		PortForwards:       make(map[string]Service),
+		MonitoringInterval: mec.MonitoringInterval,
+		UIOptions:          mec.UIOptions,
+	}
+	for _, env := range mec.Environments {
+		for name, service := range env.Services {
+			if service.Disabled {
+				continue
+			}
+			service.Context = env.Context
+			out.PortForwards[name+"-"+env.Name] = service
+		}
+	}
+	return out
+}
+
+// getUserMultiEnvConfigPath returns the user override path for the multi-env config.
+func getUserMultiEnvConfigPath() (string, error) {
+	base, err := getUserConfigPath()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(base), "environments.yaml"), nil
 }
 
 // getUserConfigPath returns the appropriate config path for the current platform

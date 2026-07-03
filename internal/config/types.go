@@ -21,6 +21,27 @@ type Service struct {
 	SwaggerPath string `yaml:"swaggerPath,omitempty"`
 	APIPath     string `yaml:"apiPath,omitempty"`
 	Disabled    bool   `yaml:"disabled,omitempty"`
+	// Context pins this forward to a specific kubectl context (used by multi-env
+	// mode). Empty means "use the current kubectl context" — the default,
+	// single-environment behavior.
+	Context string `yaml:"context,omitempty"`
+}
+
+// MultiEnvConfig is the configuration used in --multi-env mode. It is loaded
+// from a separate file (environments.yaml) and is not related to the
+// single-environment Config above.
+type MultiEnvConfig struct {
+	Environments       []Environment `yaml:"environments"`
+	MonitoringInterval time.Duration `yaml:"monitoringInterval"`
+	UIOptions          UIConfig      `yaml:"uiOptions"`
+}
+
+// Environment is one entry in the multi-env config: a named environment pinned
+// to a kubectl context, with its own set of services (and their own ports).
+type Environment struct {
+	Name     string             `yaml:"name"`
+	Context  string             `yaml:"context"`
+	Services map[string]Service `yaml:"services"`
 }
 
 // UIConfig represents UI-specific configuration options

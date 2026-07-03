@@ -14,19 +14,15 @@ import (
 )
 
 // StartKubectlPortForward starts a kubectl port-forward process with Unix-specific settings
-func StartKubectlPortForward(namespace, target string, localPort, targetPort int, logger *Logger, serviceName string) (*exec.Cmd, error) {
-	return StartKubectlPortForwardWithTimeout(namespace, target, localPort, targetPort, 30*time.Second, logger, serviceName)
+func StartKubectlPortForward(namespace, target string, localPort, targetPort int, kubeContext string, logger *Logger, serviceName string) (*exec.Cmd, error) {
+	return StartKubectlPortForwardWithTimeout(namespace, target, localPort, targetPort, 30*time.Second, kubeContext, logger, serviceName)
 }
 
-// StartKubectlPortForwardWithTimeout starts a kubectl port-forward process with a timeout
-func StartKubectlPortForwardWithTimeout(namespace, target string, localPort, targetPort int, timeout time.Duration, logger *Logger, serviceName string) (*exec.Cmd, error) {
-	args := []string{
-		"port-forward",
-		"-n", namespace,
-		target,
-		fmt.Sprintf("%d:%d", localPort, targetPort),
-		"--request-timeout=" + fmt.Sprintf("%.0fs", timeout.Seconds()),
-	}
+// StartKubectlPortForwardWithTimeout starts a kubectl port-forward process with a timeout.
+// When kubeContext is non-empty, the forward is pinned to that kubectl context
+// (--context); otherwise the current context is used.
+func StartKubectlPortForwardWithTimeout(namespace, target string, localPort, targetPort int, timeout time.Duration, kubeContext string, logger *Logger, serviceName string) (*exec.Cmd, error) {
+	args := BuildKubectlPortForwardArgs(namespace, target, localPort, targetPort, timeout, kubeContext)
 
 	cmd := exec.Command("kubectl", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
