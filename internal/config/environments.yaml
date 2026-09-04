@@ -145,6 +145,12 @@ environments:
       localPort: 50117
       namespace: catio-data-extraction
       type: rpc
+    archimedes:
+      target: service/archimedes
+      targetPort: 50051
+      localPort: 50119
+      namespace: catio-data-extraction
+      type: rpc
     architecture-knowledge-base-ui:
       target: service/architecture-knowledge-base-ui
       targetPort: 3000
@@ -280,6 +286,12 @@ environments:
       target: service/akb-search-api
       targetPort: 80
       localPort: 60117
+      namespace: catio-data-extraction
+      type: rpc
+    archimedes:
+      target: service/archimedes
+      targetPort: 50051
+      localPort: 60119
       namespace: catio-data-extraction
       type: rpc
     architecture-knowledge-base-ui:
