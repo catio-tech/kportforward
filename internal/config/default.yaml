@@ -148,6 +148,14 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
 
+  # Docs Search GRPC
+  docs-search-api:
+    target: "service/docs-search-api"
+    targetPort: 80
+    localPort: 50120
+    namespace: "catio-data-extraction"
+    type: "rpc"
+
   # Architecture Knowledge Base UI WEB
   architecture-knowledge-base-ui:
     target: "service/architecture-knowledge-base-ui"
