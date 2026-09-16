@@ -79,6 +79,7 @@ portForwards:
     localPort: 50107
     namespace: "catio-data-extraction"
     type: "rpc"
+
   # Question service
   question-service:
     target: "service/question-service"
@@ -139,6 +140,22 @@ portForwards:
     localPort: 50117
     namespace: "catio-data-extraction"
     type: "rpc"
+
+  # Relationship Lookup GRPC
+  relationship-lookup-service:
+    target: "service/relationship-lookup-service"
+    targetPort: 50950
+    localPort: 50121
+    namespace: "catio-data-extraction"
+    type: "rpc"
+
+  # Source Code Extractor REST
+  extractor-source-code:
+    target: "service/extractor-source-code"
+    targetPort: 80
+    localPort: 50122
+    namespace: "catio-data-extraction"
+    type: "rest"
 
   # Archimedes GRPC
   archimedes:
