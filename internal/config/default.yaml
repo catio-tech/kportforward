@@ -79,6 +79,7 @@ portForwards:
     localPort: 50107
     namespace: "catio-data-extraction"
     type: "rpc"
+
   # Question service
   question-service:
     target: "service/question-service"
@@ -144,7 +145,7 @@ portForwards:
   relationship-lookup-service:
     target: "service/relationship-lookup-service"
     targetPort: 50950
-    localPort: 8110
+    localPort: 50121
     namespace: "catio-data-extraction"
     type: "rpc"
 
@@ -152,7 +153,7 @@ portForwards:
   extractor-source-code:
     target: "service/extractor-source-code"
     targetPort: 80
-    localPort: 8111
+    localPort: 50122
     namespace: "catio-data-extraction"
     type: "rest"
 
