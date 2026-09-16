@@ -140,6 +140,33 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
 
+  # Relationship Lookup GRPC
+  relationship-lookup-service:
+    target: "service/relationship-lookup-service"
+    targetPort: 50950
+    localPort: 8110
+    namespace: "catio-data-extraction"
+    type: "rpc"
+
+  # Source Code Extractor REST
+  extractor-source-code:
+    target: "service/extractor-source-code"
+    targetPort: 80
+    localPort: 8111
+    namespace: "catio-data-extraction"
+    type: "rest"
+
+  # socat bridge pod to the cluster's RDS proxy. Backs AKB_DATABASE_URL for
+  # anything reading the architecture-knowledge-base Postgres directly.
+  # Plain TCP, so "other": there is no HTTP endpoint to health-check beyond
+  # the port itself.
+  rds-fwd:
+    target: "pod/rds-fwd"
+    targetPort: 5432
+    localPort: 15432
+    namespace: "catio-data-extraction"
+    type: "other"
+
   # Archimedes GRPC
   archimedes:
     target: "service/archimedes"
