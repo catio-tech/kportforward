@@ -85,6 +85,19 @@ environments:
       localPort: 50081
       namespace: flyte
       type: other
+    # Flyte 2 (v2) parallel stack — blue/green alongside v1 (Spec #177)
+    flyte2-console:
+      target: service/console
+      targetPort: 80
+      localPort: 50092
+      namespace: flyte-v2
+      type: web
+    flyte2-runs:
+      target: service/runs
+      targetPort: 8080
+      localPort: 50093
+      namespace: flyte-v2
+      type: rpc
     archie-backend:
       target: service/archie-backend
       targetPort: 50051
@@ -234,6 +247,19 @@ environments:
       localPort: 60081
       namespace: flyte
       type: other
+    # Flyte 2 (v2) parallel stack — prod band reserved for the P6 cutover (Spec #177)
+    flyte2-console:
+      target: service/console
+      targetPort: 80
+      localPort: 60092
+      namespace: flyte-v2
+      type: web
+    flyte2-runs:
+      target: service/runs
+      targetPort: 8080
+      localPort: 60093
+      namespace: flyte-v2
+      type: rpc
     archie-backend:
       target: service/archie-backend
       targetPort: 50051
