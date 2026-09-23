@@ -2,6 +2,7 @@ package ui_handlers
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -25,6 +26,21 @@ type GRPCUIManager struct {
 	statusCallback common.StatusCallback
 }
 
+const (
+	// grpcuiRetryBaseDelay is the delay before the first restart of a failed grpcui process;
+	// it doubles on each consecutive failure up to grpcuiRetryMaxDelay.
+	grpcuiRetryBaseDelay = 5 * time.Second
+	grpcuiRetryMaxDelay  = 5 * time.Minute
+	// grpcuiStableUptime is how long grpcui must stay up before its failure count resets.
+	grpcuiStableUptime = time.Minute
+
+	// Service statuses beyond "Running"/"Stopped"
+	grpcuiStatusFailed      = "Failed"      // process died; retried after nextRetry
+	grpcuiStatusUnsupported = "Unsupported" // target has no reflection API; not retried
+
+	grpcuiNoReflectionMsg = "does not support the reflection API"
+)
+
 // GRPCUIService represents a single gRPC UI instance
 type GRPCUIService struct {
 	serviceName  string
@@ -32,8 +48,10 @@ type GRPCUIService struct {
 	grpcuiPort   int
 	cmd          *exec.Cmd
 	logFile      string
+	logOffset    int64 // size of logFile when this process started
 	startTime    time.Time
-	restartCount int
+	restartCount int // consecutive failures, drives retry backoff
+	nextRetry    time.Time
 	status       string
 }
 
@@ -88,9 +106,13 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 	gm.mutex.Lock()
 	defer gm.mutex.Unlock()
 
-	// Check if already running
-	if service, exists := gm.services[serviceName]; exists && service.status == "Running" {
-		return nil
+	// Check if already running, or not yet due for a retry
+	previous, exists := gm.services[serviceName]
+	if exists {
+		gm.refreshStatus(previous)
+		if previous.status == "Running" || previous.status == grpcuiStatusUnsupported || time.Now().Before(previous.nextRetry) {
+			return nil
+		}
 	}
 
 	// Find available port for gRPC UI (thread-safe)
@@ -117,6 +139,11 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 		gm.statusCallback.UpdateServiceStatusMessage(serviceName, "Starting gRPC UI...")
 	}
 
+	var logOffset int64
+	if info, err := os.Stat(logFile); err == nil {
+		logOffset = info.Size()
+	}
+
 	// Start grpcui process
 	gm.logger.Debug("Starting gRPC UI for %s: connecting to localhost:%d, serving on port %d", serviceName, serviceStatus.LocalPort, grpcuiPort)
 	cmd, err := gm.startGRPCUIProcess(serviceName, serviceStatus.LocalPort, grpcuiPort, logFile)
@@ -126,6 +153,11 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 		return fmt.Errorf("failed to start grpcui process: %w", err)
 	}
 
+	restartCount := 0
+	if exists {
+		restartCount = previous.restartCount
+	}
+
 	// Create service entry
 	gm.services[serviceName] = &GRPCUIService{
 		serviceName:  serviceName,
@@ -133,8 +165,9 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 		grpcuiPort:   grpcuiPort,
 		cmd:          cmd,
 		logFile:      logFile,
+		logOffset:    logOffset,
 		startTime:    time.Now(),
-		restartCount: 0,
+		restartCount: restartCount,
 		status:       "Running",
 	}
 
@@ -146,7 +179,7 @@ func (gm *GRPCUIManager) StartService(serviceName string, serviceStatus config.S
 	// Check if process is still running after startup
 	if !utils.IsProcessRunning(cmd.Process.Pid) {
 		gm.logger.Error("gRPC UI process for %s died immediately after startup", serviceName)
-		gm.services[serviceName].status = "Failed"
+		gm.markFailed(gm.services[serviceName])
 		if gm.statusCallback != nil {
 			gm.statusCallback.UpdateServiceStatusMessage(serviceName, "gRPC UI failed to start")
 		}
@@ -202,12 +235,7 @@ func (gm *GRPCUIManager) GetServiceInfo(serviceName string) *GRPCUIService {
 		return nil
 	}
 
-	// Check if process is still running
-	if service.cmd != nil && service.cmd.Process != nil {
-		if !utils.IsProcessRunning(service.cmd.Process.Pid) {
-			service.status = "Failed"
-		}
-	}
+	gm.refreshStatus(service)
 
 	// Return a copy to prevent external mutation
 	copy := *service
@@ -308,20 +336,19 @@ func (gm *GRPCUIManager) MonitorServices(services map[string]config.ServiceStatu
 	gm.mutex.Lock()
 	defer gm.mutex.Unlock()
 
-	// Start gRPC UI for new RPC services, and restart failed ones
+	// Start gRPC UI for new RPC services, and restart failed ones once their backoff expires
 	for serviceName, serviceStatus := range services {
 		if serviceConfig, exists := configs[serviceName]; exists {
 			if serviceConfig.Type == "rpc" && serviceStatus.Status == "Running" {
 				existing, uiExists := gm.services[serviceName]
 				needsStart := !uiExists
 
-				// Also restart if the existing grpcui process has failed
-				if uiExists && existing.status == "Failed" {
-					gm.logger.Info("gRPC UI for %s is in Failed state, cleaning up for restart", serviceName)
-					// Clean up the failed entry (release port, remove from map)
-					utils.ReleasePort(existing.grpcuiPort)
-					delete(gm.services, serviceName)
-					needsStart = true
+				if uiExists {
+					gm.refreshStatus(existing)
+					if existing.status == grpcuiStatusFailed && !time.Now().Before(existing.nextRetry) {
+						gm.logger.Info("Restarting failed gRPC UI for %s (attempt %d)", serviceName, existing.restartCount+1)
+						needsStart = true
+					}
 				}
 
 				if needsStart {
@@ -346,6 +373,65 @@ func (gm *GRPCUIManager) MonitorServices(services map[string]config.ServiceStatu
 			}(serviceName)
 		}
 	}
+}
+
+// refreshStatus marks a "Running" service as failed if its process has exited (assumes lock is held)
+func (gm *GRPCUIManager) refreshStatus(service *GRPCUIService) {
+	if service.status != "Running" || service.cmd == nil || service.cmd.Process == nil {
+		return
+	}
+	if !utils.IsProcessRunning(service.cmd.Process.Pid) {
+		gm.markFailed(service)
+	}
+}
+
+// markFailed records a dead grpcui process and schedules its retry with exponential backoff.
+// Targets without the reflection API are marked Unsupported and never retried, since grpcui
+// cannot work against them. Assumes lock is held.
+func (gm *GRPCUIManager) markFailed(service *GRPCUIService) {
+	// The process is gone, so its port is free again
+	utils.ReleasePort(service.grpcuiPort)
+	service.grpcuiPort = 0
+
+	if gm.logReportsNoReflection(service) {
+		service.status = grpcuiStatusUnsupported
+		gm.logger.Warn("gRPC UI disabled for %s: server does not support the reflection API", service.serviceName)
+		return
+	}
+
+	if time.Since(service.startTime) >= grpcuiStableUptime {
+		service.restartCount = 0
+	}
+	service.restartCount++
+
+	delay := grpcuiRetryMaxDelay
+	if shift := service.restartCount - 1; shift < 10 {
+		delay = min(grpcuiRetryBaseDelay<<shift, grpcuiRetryMaxDelay)
+	}
+	service.nextRetry = time.Now().Add(delay)
+	service.status = grpcuiStatusFailed
+	gm.logger.Warn("gRPC UI for %s exited (failure %d), retrying in %s (log: %s)", service.serviceName, service.restartCount, delay, service.logFile)
+}
+
+// logReportsNoReflection checks the output of this grpcui run for a missing reflection API
+func (gm *GRPCUIManager) logReportsNoReflection(service *GRPCUIService) bool {
+	if service.logFile == "" {
+		return false
+	}
+	f, err := os.Open(service.logFile)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	if _, err := f.Seek(service.logOffset, io.SeekStart); err != nil {
+		return false
+	}
+	output, err := io.ReadAll(io.LimitReader(f, 64*1024))
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(output), grpcuiNoReflectionMsg)
 }
 
 // testGRPCConnection tests if a gRPC service is accessible on the given port

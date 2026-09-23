@@ -1,6 +1,8 @@
 package ui_handlers
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -370,5 +372,146 @@ func TestNoGoroutineLeakOnRepeatedStartStop(t *testing.T) {
 		t.Errorf("Possible goroutine leak: baseline=%d, current=%d (delta=%d)", baseline, current, current-baseline)
 	} else {
 		t.Logf("Goroutine count OK: baseline=%d, current=%d", baseline, current)
+	}
+}
+
+func TestMarkFailedBacksOffRetries(t *testing.T) {
+	logger := utils.NewLogger(utils.LevelInfo)
+	manager := NewGRPCUIManager(logger)
+
+	service := &GRPCUIService{serviceName: "test-rpc", startTime: time.Now(), status: "Running"}
+	manager.services["test-rpc"] = service
+
+	var delays []time.Duration
+	for i := 0; i < 8; i++ {
+		service.status = "Running"
+		before := time.Now()
+		manager.markFailed(service)
+		if service.status != grpcuiStatusFailed {
+			t.Fatalf("Expected status %q, got %q", grpcuiStatusFailed, service.status)
+		}
+		delays = append(delays, service.nextRetry.Sub(before).Round(time.Second))
+	}
+
+	want := []time.Duration{5 * time.Second, 10 * time.Second, 20 * time.Second, 40 * time.Second, 80 * time.Second, 160 * time.Second, 5 * time.Minute, 5 * time.Minute}
+	for i := range want {
+		if delays[i] != want[i] {
+			t.Errorf("Failure %d: expected retry delay %s, got %s", i+1, want[i], delays[i])
+		}
+	}
+}
+
+func TestMarkFailedResetsBackoffAfterStableUptime(t *testing.T) {
+	logger := utils.NewLogger(utils.LevelInfo)
+	manager := NewGRPCUIManager(logger)
+
+	service := &GRPCUIService{
+		serviceName:  "test-rpc",
+		startTime:    time.Now().Add(-2 * grpcuiStableUptime),
+		restartCount: 6,
+		status:       "Running",
+	}
+	manager.markFailed(service)
+
+	if service.restartCount != 1 {
+		t.Errorf("Expected failure count to reset to 1 after stable uptime, got %d", service.restartCount)
+	}
+}
+
+func TestMonitorDoesNotRestartBeforeBackoffExpires(t *testing.T) {
+	logger := utils.NewLogger(utils.LevelInfo)
+	manager := NewGRPCUIManager(logger)
+	manager.enabled = true
+
+	manager.services["test-rpc"] = &GRPCUIService{
+		serviceName:  "test-rpc",
+		status:       grpcuiStatusFailed,
+		restartCount: 3,
+		nextRetry:    time.Now().Add(time.Hour),
+	}
+
+	services := map[string]config.ServiceStatus{
+		"test-rpc": {Name: "test-rpc", Status: "Running", LocalPort: 1},
+	}
+	configs := map[string]config.Service{
+		"test-rpc": {Target: "service/test-rpc", TargetPort: 8080, LocalPort: 1, Namespace: "default", Type: "rpc"},
+	}
+
+	manager.MonitorServices(services, configs)
+	_ = manager.StartService("test-rpc", services["test-rpc"], configs["test-rpc"])
+
+	info := manager.GetServiceInfo("test-rpc")
+	if info == nil || info.status != grpcuiStatusFailed || info.restartCount != 3 {
+		t.Errorf("Expected Failed entry to be left alone until its retry time, got %+v", info)
+	}
+}
+
+func TestNoReflectionMarksUnsupported(t *testing.T) {
+	logger := utils.NewLogger(utils.LevelInfo)
+	manager := NewGRPCUIManager(logger)
+	manager.enabled = true
+
+	logFile := filepath.Join(t.TempDir(), "grpcui.log")
+	// Output from an earlier run must not count; only output after logOffset does
+	earlier := "Failed to dial target host \"localhost:1\": connection refused\n"
+	current := "Failed to compute set of methods to expose: server does not support the reflection API\n"
+	if err := os.WriteFile(logFile, []byte(earlier+current), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	service := &GRPCUIService{
+		serviceName: "test-rpc",
+		logFile:     logFile,
+		logOffset:   int64(len(earlier)),
+		startTime:   time.Now(),
+		status:      "Running",
+	}
+	manager.services["test-rpc"] = service
+	manager.markFailed(service)
+
+	if service.status != grpcuiStatusUnsupported {
+		t.Fatalf("Expected status %q, got %q", grpcuiStatusUnsupported, service.status)
+	}
+	if url := manager.GetServiceURL("test-rpc"); url != "" {
+		t.Errorf("Expected no URL for unsupported service, got %q", url)
+	}
+
+	// Monitoring must not restart it while the port-forward stays up
+	services := map[string]config.ServiceStatus{
+		"test-rpc": {Name: "test-rpc", Status: "Running", LocalPort: 1},
+	}
+	configs := map[string]config.Service{
+		"test-rpc": {Target: "service/test-rpc", TargetPort: 8080, LocalPort: 1, Namespace: "default", Type: "rpc"},
+	}
+	manager.MonitorServices(services, configs)
+	_ = manager.StartService("test-rpc", services["test-rpc"], configs["test-rpc"])
+	if info := manager.GetServiceInfo("test-rpc"); info == nil || info.status != grpcuiStatusUnsupported {
+		t.Errorf("Expected unsupported entry to be kept, got %+v", info)
+	}
+
+	// Once the port-forward stops, the entry is cleared so a later run gets a fresh attempt
+	services["test-rpc"] = config.ServiceStatus{Name: "test-rpc", Status: "Failed", LocalPort: 1}
+	manager.MonitorServices(services, configs)
+	time.Sleep(100 * time.Millisecond)
+	if info := manager.GetServiceInfo("test-rpc"); info != nil {
+		t.Errorf("Expected entry to be removed after port-forward stopped, got %+v", info)
+	}
+}
+
+func TestLogWithoutReflectionErrorIsRetried(t *testing.T) {
+	logger := utils.NewLogger(utils.LevelInfo)
+	manager := NewGRPCUIManager(logger)
+
+	logFile := filepath.Join(t.TempDir(), "grpcui.log")
+	old := "Failed to compute set of methods to expose: server does not support the reflection API\n"
+	if err := os.WriteFile(logFile, []byte(old+"listen tcp: address already in use\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	service := &GRPCUIService{serviceName: "test-rpc", logFile: logFile, logOffset: int64(len(old)), startTime: time.Now(), status: "Running"}
+	manager.markFailed(service)
+
+	if service.status != grpcuiStatusFailed {
+		t.Errorf("Expected status %q, got %q", grpcuiStatusFailed, service.status)
 	}
 }
