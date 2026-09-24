@@ -1,11 +1,5 @@
 portForwards:
   # Catio service
-  arch-inventory:
-    target: "service/architecture-inventory"
-    targetPort: 80
-    localPort: 50100
-    namespace: "catio-data-extraction"
-    type: "rpc"
   recommendations-mgnt:
     target: "service/recommendations-mgnt"
     targetPort: 50051
