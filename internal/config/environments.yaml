@@ -23,12 +23,6 @@ environments:
 - name: dev
   context: arn:aws:eks:us-west-2:891377056770:cluster/catio-cluster
   services:
-    arch-inventory:
-      target: service/architecture-inventory
-      targetPort: 80
-      localPort: 50100
-      namespace: catio-data-extraction
-      type: rpc
     recommendations-mgnt:
       target: service/recommendations-mgnt
       targetPort: 50051
@@ -185,12 +179,6 @@ environments:
 - name: prod
   context: arn:aws:eks:us-west-2:090135924592:cluster/catio-cluster
   services:
-    arch-inventory:
-      target: service/architecture-inventory
-      targetPort: 80
-      localPort: 60100
-      namespace: catio-data-extraction
-      type: rpc
     recommendations-mgnt:
       target: service/recommendations-mgnt
       targetPort: 50051
