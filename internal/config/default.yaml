@@ -149,14 +149,6 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
 
-  # Relationship Lookup GRPC
-  relationship-lookup-service:
-    target: "service/relationship-lookup-service"
-    targetPort: 50950
-    localPort: 50121
-    namespace: "catio-data-extraction"
-    type: "rpc"
-
   # Source Code Extractor REST
   extractor-source-code:
     target: "service/extractor-source-code"
