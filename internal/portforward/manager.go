@@ -659,20 +659,27 @@ func (m *Manager) checkGlobalAccess() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	// Test basic kubectl connectivity using a lightweight command
-	cmd := exec.CommandContext(ctx, "kubectl", "get", "nodes", "--request-timeout=15s")
+	// Ask the API server whether the current context may do what kportforward
+	// does: port-forward. This authenticates like any request and needs no
+	// cluster-wide read access (`kubectl get nodes` did, which least-privilege
+	// roles such as catio_developer do not have).
+	cmd := exec.CommandContext(ctx, "kubectl", "auth", "can-i", "create", "pods/portforward", "--all-namespaces", "--request-timeout=15s")
 
 	// Add environment variables to ensure kubectl uses the right config
 	applyKubeconfigEnv(cmd)
 
 	// Capture both stdout and stderr
-	var stderr bytes.Buffer
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	// Run the command
 	err := cmd.Run()
 	if err != nil {
 		errorOutput := stderr.String()
+		if errorOutput == "" && strings.TrimSpace(stdout.String()) == "no" {
+			return fmt.Errorf("kubectl access failed: the current context is not allowed to port-forward")
+		}
 		m.logger.Debug("Global access check failed: %v, stderr: %s", err, errorOutput)
 
 		// Check both the command error and stderr for auth failures
