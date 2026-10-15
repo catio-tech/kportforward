@@ -164,6 +164,12 @@ environments:
       localPort: 50120
       namespace: catio-data-extraction
       type: rpc
+    auth-service:
+      target: service/auth-service
+      targetPort: 80
+      localPort: 50123
+      namespace: catio-data-extraction
+      type: rest
     architecture-knowledge-base-ui:
       target: service/architecture-knowledge-base-ui
       targetPort: 3000
@@ -320,6 +326,12 @@ environments:
       localPort: 60120
       namespace: catio-data-extraction
       type: rpc
+    auth-service:
+      target: service/auth-service
+      targetPort: 80
+      localPort: 60123
+      namespace: catio-data-extraction
+      type: rest
     architecture-knowledge-base-ui:
       target: service/architecture-knowledge-base-ui
       targetPort: 3000
