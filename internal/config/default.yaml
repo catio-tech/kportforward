@@ -157,6 +157,14 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rest"
 
+  # Auth Service REST (API keys admin API)
+  auth-service:
+    target: "service/auth-service"
+    targetPort: 80
+    localPort: 50123
+    namespace: "catio-data-extraction"
+    type: "rest"
+
   # Archimedes GRPC
   archimedes:
     target: "service/archimedes"
