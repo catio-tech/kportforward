@@ -34,7 +34,7 @@ func BenchmarkResolvePortConflicts(b *testing.B) {
 	services := make(map[string]ServiceConfig)
 	basePort := 60000
 
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		services[fmt.Sprintf("service-%d", i)] = ServiceConfig{
 			LocalPort: basePort + (i % 10), // Create conflicts every 10 services
 		}

@@ -17,7 +17,7 @@ func BenchmarkManagerCreation(b *testing.B) {
 	}
 
 	// Add services to the config
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		serviceName := fmt.Sprintf("service-%d", i)
 		cfg.PortForwards[serviceName] = config.Service{
 			Target:     fmt.Sprintf("service/%s", serviceName),
@@ -47,7 +47,7 @@ func BenchmarkGetCurrentStatus(b *testing.B) {
 	}
 
 	// Add many services to test with
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		serviceName := fmt.Sprintf("service-%d", i)
 		cfg.PortForwards[serviceName] = config.Service{
 			Target:     fmt.Sprintf("service/%s", serviceName),
@@ -78,7 +78,7 @@ func BenchmarkUIHandlerIntegration(b *testing.B) {
 	}
 
 	// Add services with different types
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		serviceName := fmt.Sprintf("service-%d", i)
 		serviceType := "web"
 		if i%3 == 0 {
@@ -131,7 +131,7 @@ func BenchmarkConcurrentManagerOperations(b *testing.B) {
 	}
 
 	// Add services
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		serviceName := fmt.Sprintf("service-%d", i)
 		cfg.PortForwards[serviceName] = config.Service{
 			Target:     fmt.Sprintf("service/%s", serviceName),
@@ -165,7 +165,7 @@ func BenchmarkLargeServiceSet(b *testing.B) {
 	}
 
 	// Add a large number of services
-	for i := 0; i < 500; i++ {
+	for i := range 500 {
 		serviceName := fmt.Sprintf("service-%d", i)
 		cfg.PortForwards[serviceName] = config.Service{
 			Target:     fmt.Sprintf("service/%s", serviceName),

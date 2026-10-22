@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -179,15 +180,11 @@ func mergeConfigs(defaultConfig, userConfig *Config) *Config {
 	}
 
 	// Start with default port forwards
-	for name, service := range defaultConfig.PortForwards {
-		merged.PortForwards[name] = service
-	}
+	maps.Copy(merged.PortForwards, defaultConfig.PortForwards)
 
 	// Override with user port forwards (additive)
 	if userConfig.PortForwards != nil {
-		for name, service := range userConfig.PortForwards {
-			merged.PortForwards[name] = service
-		}
+		maps.Copy(merged.PortForwards, userConfig.PortForwards)
 	}
 
 	// Override monitoring interval if specified by user

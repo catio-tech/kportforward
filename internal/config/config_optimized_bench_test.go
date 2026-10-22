@@ -165,7 +165,7 @@ func BenchmarkOptimizedMerging(b *testing.B) {
 	}
 
 	// Add some user services
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		serviceName := fmt.Sprintf("user-service-%d", i)
 		userConfig.PortForwards[serviceName] = Service{
 			Target:     fmt.Sprintf("service/%s", serviceName),

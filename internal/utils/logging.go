@@ -63,7 +63,7 @@ func NewLoggerWithFile(level LogLevel, filePath string) (*Logger, error) {
 }
 
 // logf formats and logs a message at the specified level
-func (l *Logger) logf(level LogLevel, format string, args ...interface{}) {
+func (l *Logger) logf(level LogLevel, format string, args ...any) {
 	if level < l.level {
 		return
 	}
@@ -76,22 +76,22 @@ func (l *Logger) logf(level LogLevel, format string, args ...interface{}) {
 }
 
 // Debug logs a debug message
-func (l *Logger) Debug(format string, args ...interface{}) {
+func (l *Logger) Debug(format string, args ...any) {
 	l.logf(LevelDebug, format, args...)
 }
 
 // Info logs an info message
-func (l *Logger) Info(format string, args ...interface{}) {
+func (l *Logger) Info(format string, args ...any) {
 	l.logf(LevelInfo, format, args...)
 }
 
 // Warn logs a warning message
-func (l *Logger) Warn(format string, args ...interface{}) {
+func (l *Logger) Warn(format string, args ...any) {
 	l.logf(LevelWarn, format, args...)
 }
 
 // Error logs an error message
-func (l *Logger) Error(format string, args ...interface{}) {
+func (l *Logger) Error(format string, args ...any) {
 	l.logf(LevelError, format, args...)
 }
 

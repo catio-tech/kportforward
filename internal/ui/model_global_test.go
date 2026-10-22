@@ -259,7 +259,7 @@ func BenchmarkModelUpdate(b *testing.B) {
 	serviceConfigs := make(map[string]config.Service)
 	serviceStatuses := make(map[string]config.ServiceStatus)
 
-	for i := 0; i < 25; i++ { // Simulate 25 services (similar to default config)
+	for i := range 25 { // Simulate 25 services (similar to default config)
 		serviceName := fmt.Sprintf("service-%d", i)
 		serviceConfigs[serviceName] = config.Service{
 			Target:     fmt.Sprintf("service/test-%d", i),

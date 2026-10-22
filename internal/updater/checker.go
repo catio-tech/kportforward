@@ -134,7 +134,7 @@ func (c *Checker) isNewerVersion(versionA, versionB string) bool {
 	segmentsB := strings.Split(versionB, ".")
 
 	// Compare major.minor.patch segments
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		// If we ran out of segments, pad with zeros
 		var numA, numB int
 		if i < len(segmentsA) {

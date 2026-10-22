@@ -35,7 +35,7 @@ func BenchmarkConfigMerging(b *testing.B) {
 	}
 
 	// Add some default services
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		serviceName := fmt.Sprintf("default-service-%d", i)
 		defaultConfig.PortForwards[serviceName] = Service{
 			Target:     fmt.Sprintf("service/%s", serviceName),
@@ -57,7 +57,7 @@ func BenchmarkConfigMerging(b *testing.B) {
 	}
 
 	// Add some user services
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		serviceName := fmt.Sprintf("user-service-%d", i)
 		userConfig.PortForwards[serviceName] = Service{
 			Target:     fmt.Sprintf("service/%s", serviceName),
@@ -103,7 +103,7 @@ func BenchmarkLargeConfigMerging(b *testing.B) {
 	}
 
 	// Create 100 default services
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		serviceName := fmt.Sprintf("default-service-%d", i)
 		defaultConfig.PortForwards[serviceName] = Service{
 			Target:     fmt.Sprintf("service/%s", serviceName),
@@ -115,7 +115,7 @@ func BenchmarkLargeConfigMerging(b *testing.B) {
 	}
 
 	// Create 50 user services
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		serviceName := fmt.Sprintf("user-service-%d", i)
 		userConfig.PortForwards[serviceName] = Service{
 			Target:     fmt.Sprintf("service/%s", serviceName),

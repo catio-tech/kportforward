@@ -25,7 +25,7 @@ func BenchmarkOptimizedPortResolver(b *testing.B) {
 	services := make(map[string]ServiceConfig)
 	basePort := 60000
 
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		services[fmt.Sprintf("service-%d", i)] = ServiceConfig{
 			LocalPort: basePort + (i % 10), // Create conflicts every 10 services
 		}
@@ -86,7 +86,7 @@ func BenchmarkCachedVsUncachedPortCheck(b *testing.B) {
 
 	b.Run("Cached", func(b *testing.B) {
 		// Warm up cache
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			checker.IsPortAvailableOptimized(port + i)
 		}
 
@@ -102,7 +102,7 @@ func BenchmarkOriginalVsOptimizedResolver(b *testing.B) {
 	services := make(map[string]ServiceConfig)
 	basePort := 60000
 
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		services[fmt.Sprintf("service-%d", i)] = ServiceConfig{
 			LocalPort: basePort + (i % 10),
 		}

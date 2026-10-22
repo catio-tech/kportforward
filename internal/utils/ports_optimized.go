@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 )
@@ -61,7 +62,7 @@ func NewOptimizedPortResolver() *OptimizedPortResolver {
 	return &OptimizedPortResolver{
 		checker: NewPortChecker(5 * time.Second), // 5 second cache
 		resultPool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return make(map[string]int, 50) // Pre-allocate for 50 services
 			},
 		},
@@ -104,9 +105,7 @@ func (opr *OptimizedPortResolver) ResolvePortConflictsOptimized(services map[str
 
 	// Create final result (caller owns this)
 	finalResult := make(map[string]int, len(result))
-	for k, v := range result {
-		finalResult[k] = v
-	}
+	maps.Copy(finalResult, result)
 
 	return finalResult, nil
 }
@@ -141,17 +140,15 @@ func (pc *PortChecker) BatchPortCheck(ports []int) map[int]bool {
 
 	// Start workers
 	var wg sync.WaitGroup
-	for i := 0; i < maxWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range maxWorkers {
+		wg.Go(func() {
 			for port := range portChan {
 				available := pc.IsPortAvailableOptimized(port)
 				resultsMutex.Lock()
 				results[port] = available
 				resultsMutex.Unlock()
 			}
-		}()
+		})
 	}
 
 	// Send ports to workers
@@ -191,10 +188,7 @@ func (opf *OptimizedPortFinder) FindAvailablePortFast(hint int) (int, error) {
 	}
 
 	// Try sequential search from last assigned + 1
-	start := opf.lastAssigned + 1
-	if start < hint {
-		start = hint
-	}
+	start := max(opf.lastAssigned+1, hint)
 
 	for port := start; port <= 65535; port++ {
 		if IsPortAvailable(port) {

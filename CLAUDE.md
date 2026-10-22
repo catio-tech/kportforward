@@ -112,7 +112,7 @@ go tool pprof mem.prof
 ## Dependencies
 
 ### Build Dependencies
-- Go 1.21+
+- Go 1.27.3+
 - Git (for version information in builds)
 
 ### Runtime Dependencies

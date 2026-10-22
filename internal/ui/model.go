@@ -536,10 +536,7 @@ func (m *Model) renderTable() string {
 			// Only style if it's an actual URL, then pad to correct width using visual width
 			styledURL := FormatURL(urlContent)
 			visualWidthOfContent := visualWidth(urlContent)
-			padding := urlWidth - visualWidthOfContent
-			if padding < 0 {
-				padding = 0
-			}
+			padding := max(urlWidth-visualWidthOfContent, 0)
 			urlCol = styledURL + strings.Repeat(" ", padding)
 		} else {
 			urlCol = fmt.Sprintf("%-*s", urlWidth, urlContent)
