@@ -57,7 +57,7 @@ func TestFindAvailablePortWithOccupiedPorts(t *testing.T) {
 
 	// Occupy several consecutive ports on 127.0.0.1 (matching kubectl's bind behavior)
 	var listeners []net.Listener
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		listener, err := net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(basePort+i))
 		if err != nil {
 			t.Fatalf("Failed to occupy port %d: %v", basePort+i, err)

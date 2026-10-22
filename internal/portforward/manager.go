@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -333,9 +334,7 @@ func (m *Manager) monitorServices() {
 
 	m.mutex.RLock()
 	services := make(map[string]*ServiceManager, len(m.services))
-	for name, sm := range m.services {
-		services[name] = sm
-	}
+	maps.Copy(services, m.services)
 	m.mutex.RUnlock()
 
 	statusMap := make(map[string]config.ServiceStatus)
@@ -412,7 +411,7 @@ func isNilInterface(handler UIHandler) bool {
 
 	// Use reflection to check if the interface contains a nil pointer
 	v := reflect.ValueOf(handler)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		return v.IsNil()
 	}
 
@@ -559,9 +558,7 @@ func (m *Manager) restartAllServices() {
 func (m *Manager) sendInitialStatus() {
 	m.mutex.RLock()
 	services := make(map[string]*ServiceManager, len(m.services))
-	for name, sm := range m.services {
-		services[name] = sm
-	}
+	maps.Copy(services, m.services)
 	m.mutex.RUnlock()
 
 	statusMap := make(map[string]config.ServiceStatus)
@@ -826,9 +823,7 @@ func (m *Manager) checkAndUpdateGlobalAccess() bool {
 func (m *Manager) suspendAllServices() {
 	m.mutex.RLock()
 	services := make(map[string]*ServiceManager, len(m.services))
-	for name, sm := range m.services {
-		services[name] = sm
-	}
+	maps.Copy(services, m.services)
 	m.mutex.RUnlock()
 
 	for name, sm := range services {
@@ -861,9 +856,7 @@ func (m *Manager) suspendAllServices() {
 func (m *Manager) resumeServicesIfNeeded() bool {
 	m.mutex.RLock()
 	services := make(map[string]*ServiceManager, len(m.services))
-	for name, sm := range m.services {
-		services[name] = sm
-	}
+	maps.Copy(services, m.services)
 	m.mutex.RUnlock()
 
 	resumed := false

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"maps"
 	"sync"
 	"time"
 
@@ -149,15 +150,11 @@ func (ocl *OptimizedConfigLoader) mergeConfigsOptimized(defaultConfig, userConfi
 	}
 
 	// Copy default port forwards
-	for name, service := range defaultConfig.PortForwards {
-		merged.PortForwards[name] = service
-	}
+	maps.Copy(merged.PortForwards, defaultConfig.PortForwards)
 
 	// Add/override with user port forwards
 	if userConfig.PortForwards != nil {
-		for name, service := range userConfig.PortForwards {
-			merged.PortForwards[name] = service
-		}
+		maps.Copy(merged.PortForwards, userConfig.PortForwards)
 	}
 
 	// Override settings if specified by user
@@ -193,9 +190,7 @@ func (ocl *OptimizedConfigLoader) copyConfig(original *Config) *Config {
 		UIOptions:          original.UIOptions,
 	}
 
-	for name, service := range original.PortForwards {
-		copy.PortForwards[name] = service
-	}
+	maps.Copy(copy.PortForwards, original.PortForwards)
 
 	return copy
 }

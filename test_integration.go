@@ -189,7 +189,7 @@ func testPerformanceStress() error {
 	}
 
 	// Add 50 services to test scalability
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		serviceName := fmt.Sprintf("stress-test-service-%d", i)
 		cfg.PortForwards[serviceName] = config.Service{
 			Target:     fmt.Sprintf("service/test-%d", i),

@@ -175,7 +175,7 @@ kportforward --swaggerui
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.27.3+
 - kubectl (configured for your cluster)
 
 ### Building

@@ -240,7 +240,7 @@ func TestPortReleasedOnEarlyReturn(t *testing.T) {
 
 	// Call StartService multiple times — should not exhaust the port pool
 	// because each failed attempt should release its allocated port
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		_ = manager.StartService("test-rpc", serviceStatus, serviceConfig)
 	}
 
@@ -356,7 +356,7 @@ func TestNoGoroutineLeakOnRepeatedStartStop(t *testing.T) {
 	baseline := runtime.NumGoroutine()
 
 	// Repeatedly start (which bails early) and stop
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		_ = manager.StartService("test-rpc", serviceStatus, serviceConfig)
 		_ = manager.StopService("test-rpc")
 	}
@@ -383,7 +383,7 @@ func TestMarkFailedBacksOffRetries(t *testing.T) {
 	manager.services["test-rpc"] = service
 
 	var delays []time.Duration
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		service.status = "Running"
 		before := time.Now()
 		manager.markFailed(service)
