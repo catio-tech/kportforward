@@ -165,6 +165,14 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rest"
 
+  # Audit Service GRPC
+  audit-service:
+    target: "service/audit-service"
+    targetPort: 80
+    localPort: 50124
+    namespace: "catio-data-extraction"
+    type: "rpc"
+
   # Archimedes GRPC
   archimedes:
     target: "service/archimedes"

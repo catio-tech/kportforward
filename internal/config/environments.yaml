@@ -164,6 +164,12 @@ environments:
       localPort: 50120
       namespace: catio-data-extraction
       type: rpc
+    audit-service:
+      target: service/audit-service
+      targetPort: 80
+      localPort: 50124
+      namespace: catio-data-extraction
+      type: rpc
     auth-service:
       target: service/auth-service
       targetPort: 80
@@ -304,6 +310,12 @@ environments:
       target: service/docs-search-api
       targetPort: 80
       localPort: 60120
+      namespace: catio-data-extraction
+      type: rpc
+    audit-service:
+      target: service/audit-service
+      targetPort: 80
+      localPort: 60124
       namespace: catio-data-extraction
       type: rpc
     auth-service:
