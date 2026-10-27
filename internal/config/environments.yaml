@@ -221,26 +221,6 @@ environments:
       localPort: 60115
       namespace: catio-data-extraction
       type: rpc
-    flyte-console:
-      target: service/flyteconsole
-      targetPort: 80
-      localPort: 60088
-      namespace: flyte
-      type: web
-    flyte-admin-rpc:
-      target: service/flyteadmin
-      targetPort: 81
-      localPort: 60089
-      namespace: flyte
-      type: rpc
-      swaggerPath: configuration/swagger
-      apiPath: api
-    flyte-admin-web:
-      target: service/flyteadmin
-      targetPort: 80
-      localPort: 60081
-      namespace: flyte
-      type: other
     # Flyte 2 (v2) parallel stack — prod band reserved for the P6 cutover (Spec #177)
     flyte2-console:
       target: service/console
