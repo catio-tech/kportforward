@@ -172,7 +172,7 @@ environments:
       type: rpc
     auth-service:
       target: service/auth-service
-      targetPort: 80
+      targetPort: 8081
       localPort: 50123
       namespace: catio-data-extraction
       type: rest
@@ -320,7 +320,7 @@ environments:
       type: rpc
     auth-service:
       target: service/auth-service
-      targetPort: 80
+      targetPort: 8081
       localPort: 60123
       namespace: catio-data-extraction
       type: rest
