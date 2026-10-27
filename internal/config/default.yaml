@@ -160,7 +160,7 @@ portForwards:
   # Auth Service REST (API keys admin API)
   auth-service:
     target: "service/auth-service"
-    targetPort: 80
+    targetPort: 8081
     localPort: 50123
     namespace: "catio-data-extraction"
     type: "rest"
