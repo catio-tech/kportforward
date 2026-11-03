@@ -39,28 +39,6 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
 
-  # Flyte Console and admin services
-  flyte-console:
-    target: "service/flyteconsole"
-    targetPort: 80
-    localPort: 8088
-    namespace: "flyte"
-    type: "web"
-  flyte-admin-rpc:
-    target: "service/flyteadmin"
-    targetPort: 81
-    localPort: 8089
-    namespace: "flyte"
-    type: "rpc"
-    swaggerPath: "configuration/swagger"
-    apiPath: "api"
-  flyte-admin-web:
-    target: "service/flyteadmin"
-    targetPort: 80
-    localPort: 8081
-    namespace: "flyte"
-    type: "other"
-
   # Flyte 2 (v2) parallel stack — blue/green alongside v1 (Spec #177)
   flyte2-console:
     target: "service/console"
@@ -80,6 +58,7 @@ portForwards:
     localPort: 50108
     namespace: "catio-data-extraction"
     type: "rpc"
+
   # LLM Router
   llm-router:
     target: "service/llm-router"
