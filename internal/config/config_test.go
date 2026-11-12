@@ -43,7 +43,7 @@ func TestConfigMerging(t *testing.T) {
 	}
 
 	// Check for some expected services from embedded config
-	expectedServices := []string{"flyte-console", "flyte-admin-rpc", "api-gateway"}
+	expectedServices := []string{"llm-router", "views-service", "question-service"}
 	foundServices := 0
 	for _, serviceName := range expectedServices {
 		if _, exists := cfg.PortForwards[serviceName]; exists {
