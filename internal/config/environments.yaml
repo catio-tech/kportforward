@@ -92,12 +92,6 @@ environments:
       localPort: 50093
       namespace: flyte-v2
       type: rpc
-    archie-backend:
-      target: service/archie-backend
-      targetPort: 50051
-      localPort: 50108
-      namespace: catio-data-extraction
-      type: rpc
     llm-router:
       target: service/llm-router
       targetPort: 80
@@ -239,12 +233,6 @@ environments:
       targetPort: 8080
       localPort: 60093
       namespace: flyte-v2
-      type: rpc
-    archie-backend:
-      target: service/archie-backend
-      targetPort: 50051
-      localPort: 60108
-      namespace: catio-data-extraction
       type: rpc
     llm-router:
       target: service/llm-router
