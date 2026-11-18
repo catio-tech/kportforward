@@ -58,3 +58,5 @@ kportforward.yaml
 
 # Last update check file
 last_update_check
+# Local git worktrees (Claude Code)
+.claude/worktrees/

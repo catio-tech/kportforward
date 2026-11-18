@@ -41,12 +41,6 @@ environments:
       localPort: 50102
       namespace: catio-data-extraction
       type: rpc
-    extractor-trigger:
-      target: service/extractor-trigger
-      targetPort: 80
-      localPort: 50027
-      namespace: catio-data-extraction
-      type: rest
     workflow-trigger:
       target: service/workflow-trigger
       targetPort: 80
@@ -203,12 +197,6 @@ environments:
       localPort: 60102
       namespace: catio-data-extraction
       type: rpc
-    extractor-trigger:
-      target: service/extractor-trigger
-      targetPort: 80
-      localPort: 60027
-      namespace: catio-data-extraction
-      type: rest
     workflow-trigger:
       target: service/workflow-trigger
       targetPort: 80
