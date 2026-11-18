@@ -18,12 +18,6 @@ portForwards:
     localPort: 50102
     namespace: "catio-data-extraction"
     type: "rpc"
-  extractor-trigger:
-    target: "service/extractor-trigger"
-    targetPort: 80
-    localPort: 8027
-    namespace: "catio-data-extraction"
-    type: "rest"
   workflow-trigger:
     target: "service/workflow-trigger"
     targetPort: 80
