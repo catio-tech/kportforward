@@ -71,12 +71,12 @@ portForwards:
     namespace: "catio-data-extraction"
     type: "rpc"
 
-  # CatIOPipe
+  # CatIOPipe snapshot reader (dev namespace)
   catiopipe:
-    target: "service/catiopipe-grpc"
+    target: "service/catiopipe-reader-grpc"
     targetPort: 50051
     localPort: 50112
-    namespace: "catio-data-extraction"
+    namespace: "catiopipe-query-dev-us-a"
     type: "rpc"
 
   # Eval Service GRPC
