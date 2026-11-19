@@ -105,10 +105,10 @@ environments:
       namespace: catio-data-extraction
       type: rpc
     catiopipe:
-      target: service/catiopipe-grpc
+      target: service/catiopipe-reader-grpc
       targetPort: 50051
       localPort: 50112
-      namespace: catio-data-extraction
+      namespace: catiopipe-query-dev-us-a
       type: rpc
     eval-service:
       target: service/eval-service
@@ -241,10 +241,10 @@ environments:
       namespace: catio-data-extraction
       type: rpc
     catiopipe:
-      target: service/catiopipe-grpc
+      target: service/catiopipe-reader-grpc
       targetPort: 50051
       localPort: 60112
-      namespace: catio-data-extraction
+      namespace: catiopipe-query-prod-us-a
       type: rpc
     eval-service:
       target: service/eval-service
